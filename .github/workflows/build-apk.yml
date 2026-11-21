@@ -1,0 +1,140 @@
+name: Build and Release Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_title:
+        description: 'Release Title'
+        required: false
+        default: ''
+      create_release:
+        description: 'Publish GitHub Release with Direct APK Download'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-debug-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android-apk:
+    name: Build & Release Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Sync Capacitor Android Project
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Setup Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Prepare APK Output
+        id: prepare_apk
+        run: |
+          mkdir -p release-output
+          APK_SOURCE="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK_SOURCE" ]; then
+            APK_SOURCE=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1 || true)
+          fi
+          if [ -z "$APK_SOURCE" ] || [ ! -f "$APK_SOURCE" ]; then
+            echo "Error: Debug APK not found!"
+            exit 1
+          fi
+          cp "$APK_SOURCE" release-output/app-debug.apk
+          cp "$APK_SOURCE" release-output/tarjama-wa-taallam-debug.apk
+          ls -lh release-output
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarjama-wa-taallam-debug-apk
+          path: release-output/*.apk
+          retention-days: 30
+
+      - name: Determine Release Tag
+        id: tag_info
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            TAG_NAME="v1.0.0-build.${{ github.run_number }}"
+          fi
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release with Direct APK Download
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_release != false && inputs.create_release != 'false')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_info.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ inputs.release_title || format('ترجمة وتعلّم - Android Debug APK ({0})', steps.tag_info.outputs.tag_name) }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: |
+            release-output/tarjama-wa-taallam-debug.apk
+            release-output/app-debug.apk
+          body: |
+            ### 📱 تطبيق ترجمة وتعلّم (Android Debug APK)
+
+            تم بناء ملف الـ APK تلقائياً عبر GitHub Actions وهو جاهز للتحميل المباشر والتثبيت على أجهزة أندرويد.
+
+            #### 📥 روابط التحميل المباشر (Direct APK Download):
+            - **[تحميل مباشر — tarjama-wa-taallam-debug.apk](https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag_name }}/tarjama-wa-taallam-debug.apk)**
+            - **[تحميل مباشر — app-debug.apk](https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag_name }}/app-debug.apk)**
+            - **[أحدث إصدار دائماً (Latest APK)](https://github.com/${{ github.repository }}/releases/latest/download/tarjama-wa-taallam-debug.apk)**
+
+            ---
+            *Build Run #${{ github.run_number }} • Commit `${{ github.sha }}`*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

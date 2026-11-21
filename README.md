@@ -1,11 +1,56 @@
-<div align="center">
+# ترجمة وتعلّم — تطبيق أندرويد والويب الشامل
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+تطبيق ترجمة متكامل يدعم الترجمة الفورية **بدون إنترنت (100% Offline)** وبالاتصال السحابي، مع ترجمة الكاميرا والصور والفيديوهات والمسلسلات الحية، وقواعد وتعلّم اللغات، وكرة الشاشة العائمة.
 
-  <h1>Built with AI Studio</h2>
+---
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## ✨ أبرز المميزات
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+- **ترجمة النصوص والكتابة والمحادثة الصوتية**: دعم كامل لـ 10 لغات (`العربية، الإنجليزية، الفرنسية، الإسبانية، الألمانية، التركية، الإيطالية، الروسية، الصينية، اليابانية`) بدون نت عبر حزم محلية مدمجة.
+- **ترجمة الصور والكاميرا**: التقاط أو رفع صور وترجمة النصوص داخلها.
+- **ترجمة الفيديوهات والمسلسلات الحية**: ترجمة مزدوجة من الروابط أو الصوت أو النصوص.
+- **كرة الشاشة العائمة**: كرة ذكية قابلة للسحب على الشاشة مع خيار تفعيل / عدم تفعيل ومحاكي شاشة الهاتف.
+- **قواعد وتعلّم اللغات**: دروس تفاعلية واختبارات للغات العالمية.
 
-</div>
+---
+
+## 📦 إنشاء ونشر ملف APK للتصحيح (Debug APK) تلقائياً
+
+تم إعداد مسار **GitHub Actions** في `.github/workflows/build-apk.yml` لبناء ونشر ملف **Android Debug APK** تلقائياً:
+
+1. **متى يعمل البناء؟**
+   - تلقائياً عند كل `push` إلى فرع `main` أو `master` أو عند دفع وسم يبدأ بـ `v*`.
+   - أو يدوياً من GitHub: **Actions ← Build and Release Android APK ← Run workflow**.
+2. **ماذا ينفّذ المسار؟**
+   - تثبيت الحزم وإعداد **Node.js 22**.
+   - بناء تطبيق الويب (`npm run build`) وتضمين حزم الترجمة الأوفلاين.
+   - مزامنة مشروع أندرويد (`npx cap sync android`).
+   - إعداد **Java JDK 21** و**Android SDK** وبناء ملف التصحيح عبر `./gradlew assembleDebug`.
+3. **التحميل المباشر لملف APK**:
+   - **من GitHub Releases**: يتم إنشاء إصدار جديد تلقائياً يحتوي على ملفي:
+     - `tarjama-wa-taallam-debug.apk`
+     - `app-debug.apk`
+   - **رابط أحدث إصدار مباشر** (استبدل `OWNER/REPO` باسم مستودعك):
+     `https://github.com/OWNER/REPO/releases/latest/download/tarjama-wa-taallam-debug.apk`
+   - **من Actions Artifacts**: متاح أيضاً للتنزيل لمدة 30 يوماً تحت اسم `tarjama-wa-taallam-debug-apk`.
+
+---
+
+## 🛠️ التشغيل والبناء محلياً
+
+```bash
+# تثبيت الحزم
+npm install
+
+# تشغيل خادم التطوير
+npm run dev
+
+# بناء تطبيق الويب فقط
+npm run build
+
+# بناء ومزامنة وإنشاء Debug APK محلياً (يتطلب Java 21 و Android SDK)
+npm run android:build
+```
+
+مسار ملف الـ APK الناتج محلياً:
+`android/app/build/outputs/apk/debug/app-debug.apk`

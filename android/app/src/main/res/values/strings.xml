@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ترجمة وتعلم</string>
+    <string name="title_activity_main">ترجمة وتعلم</string>
+    <string name="package_name">com.tarjama.learn</string>
+    <string name="custom_url_scheme">com.tarjama.learn</string>
+</resources>

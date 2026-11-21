@@ -1,0 +1,11 @@
+{
+  "name": "ترجمان بلس - المترجم الذكي والكرة العائمة",
+  "description": "تطبيق ترجمة شامل ذكي يدعم العمل بدون إنترنت، ترجمة الفيديوهات والمسلسلات الحية، ترجمة الصور والكاميرا، وترجمة النصوص وكرة الشاشة العائمة.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

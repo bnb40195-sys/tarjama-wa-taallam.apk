@@ -1,0 +1,128 @@
+{
+  "manifestVersion": "2.0.0",
+  "updatedAt": "2026-11-13T13:11:24.412Z",
+  "totalPacks": 10,
+  "arabicHeritageWords": 12305412,
+  "packs": [
+    {
+      "code": "ar",
+      "nameAr": "العربية الفصحى (لغة الضاد)",
+      "nameEn": "Classical & Modern Standard Arabic",
+      "flag": "🇸🇦",
+      "totalWordsHeritage": 12305412,
+      "heritageNotesAr": "تحتوي اللغة العربية الفصحى على 12,305,412 كلمة ومفردة فريدة غير مكررة وفق حسابات أئمة المعاجم العربية الكبرى (كتاب العين للخليل بن أحمد، لسان العرب لابن منظور، القاموس المحيط للفيروزآبادي). وهي أثرى لغة على وجه الأرض بلا منازع.",
+      "fileUrl": "/packs/pack_ar.json",
+      "downloadApiUrl": "/api/packs/download/ar",
+      "sizeBytes": 333547,
+      "sizeMb": "0.32"
+    },
+    {
+      "code": "en",
+      "nameAr": "الإنجليزية العالمية",
+      "nameEn": "English Language Core",
+      "flag": "🇬🇧",
+      "totalWordsHeritage": 600000,
+      "heritageNotesAr": "تحتوي اللغة الإنجليزية على حوالي 600,000 كلمة ومفردة في معاجم أكسفورد ووبستر الشاملة.",
+      "fileUrl": "/packs/pack_en.json",
+      "downloadApiUrl": "/api/packs/download/en",
+      "sizeBytes": 326888,
+      "sizeMb": "0.31"
+    },
+    {
+      "code": "fr",
+      "nameAr": "الفرنسية",
+      "nameEn": "French Language Core",
+      "flag": "🇫🇷",
+      "totalWordsHeritage": 150000,
+      "heritageNotesAr": "تحتوي اللغة الفرنسية على حوالي 150,000 كلمة في معجم الأكاديمية الفرنسية ولاروس.",
+      "fileUrl": "/packs/pack_fr.json",
+      "downloadApiUrl": "/api/packs/download/fr",
+      "sizeBytes": 328015,
+      "sizeMb": "0.31"
+    },
+    {
+      "code": "es",
+      "nameAr": "الإسبانية",
+      "nameEn": "Spanish Language Core",
+      "flag": "🇪🇸",
+      "totalWordsHeritage": 100000,
+      "heritageNotesAr": "تحتوي اللغة الإسبانية على حوالي 100,000 كلمة في معجم الأكاديمية الملكية الإسبانية (RAE).",
+      "fileUrl": "/packs/pack_es.json",
+      "downloadApiUrl": "/api/packs/download/es",
+      "sizeBytes": 327731,
+      "sizeMb": "0.31"
+    },
+    {
+      "code": "de",
+      "nameAr": "الألمانية",
+      "nameEn": "German Language Core",
+      "flag": "🇩🇪",
+      "totalWordsHeritage": 135000,
+      "heritageNotesAr": "تحتوي اللغة الألمانية على حوالي 135,000 كلمة أصلية مع ميزة تركيب الكلمات المركبة.",
+      "fileUrl": "/packs/pack_de.json",
+      "downloadApiUrl": "/api/packs/download/de",
+      "sizeBytes": 327676,
+      "sizeMb": "0.31"
+    },
+    {
+      "code": "tr",
+      "nameAr": "التركية",
+      "nameEn": "Turkish Language Core",
+      "flag": "🇹🇷",
+      "totalWordsHeritage": 110000,
+      "heritageNotesAr": "تحتوي اللغة التركية على حوالي 110,000 كلمة في معجم مجمع اللغة التركية (TDK).",
+      "fileUrl": "/packs/pack_tr.json",
+      "downloadApiUrl": "/api/packs/download/tr",
+      "sizeBytes": 328093,
+      "sizeMb": "0.31"
+    },
+    {
+      "code": "it",
+      "nameAr": "الإيطالية",
+      "nameEn": "Italian Language Core",
+      "flag": "🇮🇹",
+      "totalWordsHeritage": 105000,
+      "heritageNotesAr": "تحتوي اللغة الإيطالية على حوالي 105,000 كلمة في معاجم اللغة الإيطالية الحديثة.",
+      "fileUrl": "/packs/pack_it.json",
+      "downloadApiUrl": "/api/packs/download/it",
+      "sizeBytes": 327745,
+      "sizeMb": "0.31"
+    },
+    {
+      "code": "ru",
+      "nameAr": "الروسية",
+      "nameEn": "Russian Language Core",
+      "flag": "🇷🇺",
+      "totalWordsHeritage": 140000,
+      "heritageNotesAr": "تحتوي اللغة الروسية على حوالي 140,000 كلمة في معجم دال وأوشاكوف.",
+      "fileUrl": "/packs/pack_ru.json",
+      "downloadApiUrl": "/api/packs/download/ru",
+      "sizeBytes": 334200,
+      "sizeMb": "0.32"
+    },
+    {
+      "code": "zh",
+      "nameAr": "الصينية المبسطة",
+      "nameEn": "Simplified Chinese",
+      "flag": "🇨🇳",
+      "totalWordsHeritage": 150000,
+      "heritageNotesAr": "تحتوي اللغة الصينية على آلاف الرموز (Hànzì) التي تشكل أكثر من 150,000 مركب لغوي.",
+      "fileUrl": "/packs/pack_zh.json",
+      "downloadApiUrl": "/api/packs/download/zh",
+      "sizeBytes": 327139,
+      "sizeMb": "0.31"
+    },
+    {
+      "code": "ja",
+      "nameAr": "اليابانية",
+      "nameEn": "Japanese Language Core",
+      "flag": "🇯🇵",
+      "totalWordsHeritage": 140000,
+      "heritageNotesAr": "تحتوي اللغة اليابانية على كانجي وهيراغانا وكاتاكانا بما يزيد عن 140,000 تعبير.",
+      "fileUrl": "/packs/pack_ja.json",
+      "downloadApiUrl": "/api/packs/download/ja",
+      "sizeBytes": 329942,
+      "sizeMb": "0.31"
+    }
+  ]
+}
