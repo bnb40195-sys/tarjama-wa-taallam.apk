@@ -74,45 +74,75 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Ensure a writable Android SDK root (fallback to $HOME/Android/Sdk if preinstalled path is read-only)
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          if [ ! -d "$SDK_ROOT" ]; then
+          if [ ! -d "$SDK_ROOT" ] || [ ! -w "$SDK_ROOT" ]; then
+            if [ -d "$SDK_ROOT" ] && command -v sudo >/dev/null 2>&1; then
+              sudo chown -R "$(id -un):$(id -gn)" "$SDK_ROOT" 2>/dev/null || true
+            fi
+          fi
+          if [ ! -d "$SDK_ROOT" ] || [ ! -w "$SDK_ROOT" ]; then
             SDK_ROOT="$HOME/Android/Sdk"
             mkdir -p "$SDK_ROOT"
           fi
 
+          export ANDROID_HOME="$SDK_ROOT"
+          export ANDROID_SDK_ROOT="$SDK_ROOT"
+
+          install_cmdline_tools() {
+            local tmp_zip="/tmp/cmdline-tools.zip"
+            rm -rf "$tmp_zip" /tmp/cmdline-unpack
+            if ! curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip" -o "$tmp_zip"; then
+              curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$tmp_zip"
+            fi
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            rm -rf "$SDK_ROOT/cmdline-tools/latest"
+            unzip -q "$tmp_zip" -d /tmp/cmdline-unpack
+            mv /tmp/cmdline-unpack/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+            rm -rf "$tmp_zip" /tmp/cmdline-unpack
+            chmod +x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          }
+
+          # Only accept modern cmdline-tools sdkmanager (never legacy tools/bin/sdkmanager which breaks on JDK 21)
           SDKMANAGER=""
           if [ -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
             SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          else
-            FOUND_SM="$(find "$SDK_ROOT" -maxdepth 4 -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
+          elif [ -d "$SDK_ROOT/cmdline-tools" ]; then
+            FOUND_SM="$(find "$SDK_ROOT/cmdline-tools" -maxdepth 3 -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
             if [ -n "$FOUND_SM" ]; then
               chmod +x "$FOUND_SM"
               SDKMANAGER="$FOUND_SM"
             fi
           fi
 
-          if [ -z "$SDKMANAGER" ]; then
-            TMP_ZIP="/tmp/cmdline-tools.zip"
-            curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$TMP_ZIP"
-            mkdir -p "$SDK_ROOT/cmdline-tools"
-            rm -rf "$SDK_ROOT/cmdline-tools/latest" /tmp/cmdline-unpack
-            unzip -q "$TMP_ZIP" -d /tmp/cmdline-unpack
-            mv /tmp/cmdline-unpack/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
-            rm -rf "$TMP_ZIP" /tmp/cmdline-unpack
+          if [ -z "$SDKMANAGER" ] || ! "$SDKMANAGER" --sdk_root="$SDK_ROOT" --version >/dev/null 2>&1; then
+            install_cmdline_tools
             SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-            chmod +x "$SDKMANAGER"
           fi
 
           echo "Using sdkmanager: $SDKMANAGER (SDK_ROOT=$SDK_ROOT)"
 
-          set +o pipefail
-          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
-          set -o pipefail
+          install_sdk_packages() {
+            set +o pipefail
+            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses
+            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
+              "platform-tools" \
+              "platforms;android-36" \
+              "build-tools;36.0.0" \
+              "build-tools;35.0.0"
+            set -o pipefail
+          }
 
-          "$SDKMANAGER" --sdk_root="$SDK_ROOT" \
-            "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
+          # If preinstalled cmdline-tools is too old for android-36, refresh cmdline-tools and retry once
+          if ! install_sdk_packages; then
+            echo "Preinstalled sdkmanager failed; refreshing cmdline-tools and retrying..."
+            install_cmdline_tools
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+            install_sdk_packages
+          fi
+
+          test -f "$SDK_ROOT/platforms/android-36/android.jar"
+          test -d "$SDK_ROOT/build-tools/36.0.0"
 
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
