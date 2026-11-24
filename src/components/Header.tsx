@@ -15,9 +15,10 @@ import {
   PowerOff,
   ChevronDown,
   Smartphone,
+  FileCode2,
 } from 'lucide-react';
 import { getInstalledPacks } from '../services/offlineEngine.ts';
-import { AppLanguage, APP_TRANSLATIONS } from '../services/appTranslations.ts';
+import { AppLanguage, UI_LOCALES } from '../services/appTranslations.ts';
 import {
   getExternalBallStatus,
   enableExternalFloatingBall,
@@ -38,14 +39,13 @@ interface HeaderProps {
   floatingBallEnabled: boolean;
   onToggleFloatingBall: () => void;
   onSetFloatingBallEnabled?: (enabled: boolean) => void;
-  activeTab: 'text' | 'camera' | 'video' | 'screen' | 'grammar' | 'packs';
-  setActiveTab: (tab: 'text' | 'camera' | 'video' | 'screen' | 'grammar' | 'packs') => void;
+  activeTab: 'text' | 'camera' | 'video' | 'screen' | 'grammar' | 'appsFiles' | 'packs';
+  setActiveTab: (tab: 'text' | 'camera' | 'video' | 'screen' | 'grammar' | 'appsFiles' | 'packs') => void;
   appLang: AppLanguage;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   forceOffline,
-  networkMode,
   onToggleMode,
   isBrowserOnline,
   onOpenPacksModal,
@@ -89,6 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
     }
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [ballMenuOpen]);
+
   useEffect(() => {
     const syncPacks = () => setInstalledCount(getInstalledPacks().length);
     window.addEventListener('tarjuman-packs-changed', syncPacks);
@@ -100,7 +101,9 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const isEffectivelyOffline = forceOffline || !isBrowserOnline;
-  const t = APP_TRANSLATIONS[appLang] || APP_TRANSLATIONS.ar;
+  const t = UI_LOCALES[appLang] || UI_LOCALES.ar;
+  const isRtl = appLang === 'ar';
+  const logoBadgeChar = t.common.appName.slice(0, 1).toUpperCase();
 
   return (
     <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
@@ -109,19 +112,19 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Logo & Identity */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-black text-xl">
-              ت
+              {logoBadgeChar}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-lg text-white tracking-wide">
-                  ترجمة <span className="text-cyan-400 font-extrabold">وتعلّم</span>
+                  {t.common.appName}
                 </h1>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 font-bold">
-                  تطبيق الترجمة الشامل
+                  {t.common.appTagline}
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                ترجمة فورية وتعلّم اللغات • تشغيل بدون نت • كرة الشاشة العائمة
+                {t.common.appSubtitle}
               </p>
             </div>
           </div>
@@ -137,10 +140,10 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-950/40 ring-1 ring-emerald-400/50'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                 }`}
-                title="تفعيل وضع أونلاين: الترجمة السحابية الذكية الفائقة"
+                title={t.header.onlineTitle}
               >
                 <Globe className="w-3.5 h-3.5 text-emerald-300" />
-                <span>أونلاين 🌐</span>
+                <span>{t.header.onlineBtn}</span>
               </button>
 
               <button
@@ -150,10 +153,10 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-950/40 ring-1 ring-amber-400/50'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                 }`}
-                title="تفعيل وضع أوفلاين: الترجمة بدون نت من الحزم المنزّلة فقط"
+                title={t.header.offlineTitle}
               >
                 <WifiOff className="w-3.5 h-3.5 text-amber-300" />
-                <span>أوفلاين 📴</span>
+                <span>{t.header.offlineBtn}</span>
               </button>
             </div>
 
@@ -173,11 +176,20 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               />
               {!isBrowserOnline ? (
-                <span>النت مقطوع: <strong className="text-amber-200">أوفلاين تلقائي</strong></span>
+                <span>
+                  {t.header.statusLostNet}{' '}
+                  <strong className="text-amber-200">{t.header.statusAutoOffline}</strong>
+                </span>
               ) : isEffectivelyOffline ? (
-                <span>أوفلاين يدوي: <strong className="text-amber-200">حزم الجهاز فقط</strong></span>
+                <span>
+                  {t.header.statusManualOffline}{' '}
+                  <strong className="text-amber-200">{t.header.statusDevicePacksOnly}</strong>
+                </span>
               ) : (
-                <span>سحابي: <strong className="text-emerald-200">المحرك متصل ⚡</strong></span>
+                <span>
+                  {t.header.statusCloud}{' '}
+                  <strong className="text-emerald-200">{t.header.statusEngineConnected}</strong>
+                </span>
               )}
             </div>
 
@@ -185,10 +197,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenPacksModal}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition"
-              title="إدارة حزم اللغات بدون نت"
+              title={t.header.offlinePacksTitle}
             >
               <DownloadCloud className="w-3.5 h-3.5 text-cyan-400" />
-              <span>حزم الأوفلاين</span>
+              <span>{t.header.offlinePacksBtn}</span>
               <span className="w-5 h-5 rounded-full bg-cyan-900/60 text-cyan-300 border border-cyan-700/50 text-[10px] flex items-center justify-center font-bold">
                 {installedCount}
               </span>
@@ -203,25 +215,29 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300 ring-2 ring-cyan-500/20'
                     : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
                 }`}
-                title="تفعيل أو عدم تفعيل كرة الترجمة العائمة"
+                title={t.header.floatingBallTitle}
               >
                 <CircleDot className={`w-3.5 h-3.5 ${floatingBallEnabled ? 'text-cyan-400 animate-spin' : 'text-slate-400'}`} />
-                <span className="hidden sm:inline">كرة الشاشة</span>
+                <span className="hidden sm:inline">{t.header.floatingBallBtn}</span>
                 <span className={`w-2 h-2 rounded-full ${floatingBallEnabled ? 'bg-emerald-400' : 'bg-slate-500'}`} />
                 <ChevronDown className={`w-3 h-3 transition-transform ${ballMenuOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {ballMenuOpen && (
-                <div className="absolute left-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2">
+                <div
+                  className={`absolute ${isRtl ? 'left-0' : 'right-0'} mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2`}
+                >
                   <div>
                     <div className="px-2 py-1 text-[11px] font-bold text-slate-400 border-b border-slate-800 mb-1.5 flex items-center justify-between">
-                      <span>الكرة داخل التطبيق</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                        floatingBallEnabled
-                          ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}>
-                        {floatingBallEnabled ? 'مفعّلة' : 'غير مفعّلة'}
+                      <span>{t.header.inAppBallTitle}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                          floatingBallEnabled
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}
+                      >
+                        {floatingBallEnabled ? t.common.enabled : t.common.disabled}
                       </span>
                     </div>
 
@@ -242,7 +258,7 @@ export const Header: React.FC<HeaderProps> = ({
                         }`}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>تفعيل</span>
+                        <span>{t.common.enable}</span>
                       </button>
 
                       <button
@@ -261,7 +277,7 @@ export const Header: React.FC<HeaderProps> = ({
                         }`}
                       >
                         <PowerOff className="w-3.5 h-3.5 text-rose-400" />
-                        <span>عدم تفعيل</span>
+                        <span>{t.common.disable}</span>
                       </button>
                     </div>
                   </div>
@@ -271,21 +287,23 @@ export const Header: React.FC<HeaderProps> = ({
                     <div className="px-2 py-1 text-[11px] font-bold text-cyan-300 mb-1.5 flex items-center justify-between">
                       <span className="flex items-center gap-1">
                         <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>خارج التطبيق (الشاشة الرئيسية)</span>
+                        <span>{t.header.externalBallTitle}</span>
                       </span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                        externalBallRunning
-                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}>
-                        {externalBallRunning ? 'تعمل' : 'متوقفة'}
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                          externalBallRunning
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}
+                      >
+                        {externalBallRunning ? t.header.running : t.header.stopped}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         onClick={async () => {
-                          const res = await enableExternalFloatingBall('ar', isEffectivelyOffline);
+                          const res = await enableExternalFloatingBall(appLang, isEffectivelyOffline, appLang);
                           setExternalBallRunning(res.running);
                           setExternalNotice(res.message);
                         }}
@@ -296,12 +314,12 @@ export const Header: React.FC<HeaderProps> = ({
                         }`}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>تفعيل</span>
+                        <span>{t.common.enable}</span>
                       </button>
 
                       <button
                         onClick={async () => {
-                          const res = await disableExternalFloatingBall();
+                          const res = await disableExternalFloatingBall(appLang);
                           setExternalBallRunning(res.running);
                           setExternalNotice(res.message);
                         }}
@@ -312,7 +330,7 @@ export const Header: React.FC<HeaderProps> = ({
                         }`}
                       >
                         <PowerOff className="w-3.5 h-3.5 text-rose-400" />
-                        <span>عدم تفعيل</span>
+                        <span>{t.common.disable}</span>
                       </button>
                     </div>
 
@@ -330,7 +348,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenHistory}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition"
-              title={t.history}
+              title={t.header.historyTitle}
             >
               <History className="w-4 h-4" />
             </button>
@@ -339,7 +357,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenHelp}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 hover:text-white transition"
-              title={t.help}
+              title={t.header.helpTitle}
             >
               <HelpCircle className="w-4 h-4" />
             </button>
@@ -348,7 +366,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenSettings}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition"
-              title={t.settings}
+              title={t.header.settingsTitle}
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -366,7 +384,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <Languages className="w-4 h-4" />
-            <span>{t.tabText}</span>
+            <span>{t.header.tabs.text}</span>
           </button>
 
           <button
@@ -378,7 +396,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <span>📸</span>
-            <span>{t.tabCamera}</span>
+            <span>{t.header.tabs.camera}</span>
           </button>
 
           <button
@@ -390,7 +408,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <span>🎬</span>
-            <span>{t.tabVideo}</span>
+            <span>{t.header.tabs.video}</span>
           </button>
 
           <button
@@ -402,7 +420,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <span>📱</span>
-            <span>{t.tabScreen}</span>
+            <span>{t.header.tabs.screen}</span>
           </button>
 
           <button
@@ -414,7 +432,19 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <GraduationCap className="w-4 h-4" />
-            <span>قواعد وتعلّم اللغات</span>
+            <span>{t.header.tabs.grammar}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('appsFiles')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${
+              activeTab === 'appsFiles'
+                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+          >
+            <FileCode2 className="w-4 h-4" />
+            <span>{t.header.tabs.appsFiles}</span>
           </button>
 
           <button
@@ -426,7 +456,9 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <DownloadCloud className="w-4 h-4" />
-            <span>{t.tabPacks} ({installedCount})</span>
+            <span>
+              {t.header.tabs.packs} ({installedCount})
+            </span>
           </button>
         </div>
       </div>

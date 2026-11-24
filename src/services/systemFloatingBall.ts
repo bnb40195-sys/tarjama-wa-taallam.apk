@@ -1,6 +1,12 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { executeTranslation } from './translatorService.ts';
 import { AVAILABLE_PACKS } from './offlineData.ts';
+import {
+  AppLanguage,
+  UI_LOCALES,
+  getLocalizedLangName,
+  getStoredAppLanguage,
+} from './appTranslations.ts';
 
 interface FloatingBallOverlayPlugin {
   checkOverlayPermission(): Promise<{ granted: boolean; running: boolean }>;
@@ -85,8 +91,10 @@ export async function getExternalBallStatus(): Promise<ExternalBallStatus> {
 
 export async function enableExternalFloatingBall(
   targetLang = 'ar',
-  forceOffline = false
+  forceOffline = false,
+  appLang: AppLanguage = getStoredAppLanguage()
 ): Promise<ExternalBallActionResult> {
+  const isAr = appLang === 'ar';
   if (isNativeAndroid()) {
     try {
       const perm = await FloatingBallOverlay.checkOverlayPermission();
@@ -98,7 +106,9 @@ export async function enableExternalFloatingBall(
             success: false,
             mode: 'android',
             running: false,
-            message: 'يرجى السماح بصلاحية «الظهور فوق التطبيقات الأخرى» لتشغيل الكرة على الشاشة الرئيسية وباقي التطبيقات.',
+            message: isAr
+              ? 'يرجى السماح بصلاحية «الظهور فوق التطبيقات الأخرى» لتشغيل الكرة على الشاشة الرئيسية وباقي التطبيقات.'
+              : 'Please allow "Display over other apps" permission to run the floating ball on the home screen.',
           };
         }
       }
@@ -110,15 +120,21 @@ export async function enableExternalFloatingBall(
         mode: 'android',
         running: Boolean(res.running),
         message: res.started
-          ? 'تم تشغيل الكرة العائمة خارج التطبيق! يمكنك الآن الخروج إلى الشاشة الرئيسية أو أي تطبيق آخر.'
-          : 'تعذر تشغيل الكرة العائمة خارج التطبيق.',
+          ? isAr
+            ? 'تم تشغيل الكرة العائمة خارج التطبيق! يمكنك الآن الخروج إلى الشاشة الرئيسية أو أي تطبيق آخر.'
+            : 'Floating ball started outside the app! You can now switch to your home screen or any app.'
+          : isAr
+          ? 'تعذر تشغيل الكرة العائمة خارج التطبيق.'
+          : 'Could not start the floating ball outside the app.',
       };
     } catch {
       return {
         success: false,
         mode: 'android',
         running: false,
-        message: 'حدث خطأ أثناء تشغيل خدمة الكرة العائمة على أندرويد.',
+        message: isAr
+          ? 'حدث خطأ أثناء تشغيل خدمة الكرة العائمة على أندرويد.'
+          : 'An error occurred while starting the Android overlay service.',
       };
     }
   }
@@ -131,7 +147,9 @@ export async function enableExternalFloatingBall(
           success: true,
           mode: 'pip',
           running: true,
-          message: 'النافذة العائمة تعمل بالفعل خارج التطبيق.',
+          message: isAr
+            ? 'النافذة العائمة تعمل بالفعل خارج التطبيق.'
+            : 'Floating window is already active outside the app.',
         };
       }
 
@@ -143,7 +161,7 @@ export async function enableExternalFloatingBall(
 
       const pipWin = await pipApi.requestWindow({ width: 350, height: 340 });
       activePipWindow = pipWin;
-      buildPipTranslatorUi(pipWin, targetLang, forceOffline);
+      buildPipTranslatorUi(pipWin, targetLang, forceOffline, appLang);
 
       pipWin.addEventListener('pagehide', () => {
         activePipWindow = null;
@@ -155,14 +173,18 @@ export async function enableExternalFloatingBall(
         success: true,
         mode: 'pip',
         running: true,
-        message: 'تم فتح نافذة الكرة العائمة خارج التطبيق (تظهر فوق جميع النوافذ والتطبيقات).',
+        message: isAr
+          ? 'تم فتح نافذة الكرة العائمة خارج التطبيق (تظهر فوق جميع النوافذ والتطبيقات).'
+          : 'External floating ball window opened (appears over other apps and windows).',
       };
     } catch {
       return {
         success: false,
         mode: 'pip',
         running: false,
-        message: 'لم يتم فتح النافذة العائمة — يرجى النقر مجدداً للسماح بها.',
+        message: isAr
+          ? 'لم يتم فتح النافذة العائمة — يرجى النقر مجدداً للسماح بها.'
+          : 'Floating window was not opened — click again to allow.',
       };
     }
   }
@@ -171,12 +193,16 @@ export async function enableExternalFloatingBall(
     success: false,
     mode: 'unsupported',
     running: false,
-    message:
-      'الظهور فوق الشاشة الرئيسية والتطبيقات الأخرى مدعوم مباشرة في تطبيق أندرويد (APK) أو في متصفحات Chrome الداعمة للنافذة العائمة.',
+    message: isAr
+      ? 'الظهور فوق الشاشة الرئيسية والتطبيقات الأخرى مدعوم مباشرة في تطبيق أندرويد (APK) أو في متصفحات Chrome الداعمة للنافذة العائمة.'
+      : 'Displaying over the home screen and other apps is supported directly in the Android APK or Chromium Document Picture-in-Picture browsers.',
   };
 }
 
-export async function disableExternalFloatingBall(): Promise<ExternalBallActionResult> {
+export async function disableExternalFloatingBall(
+  appLang: AppLanguage = getStoredAppLanguage()
+): Promise<ExternalBallActionResult> {
+  const isAr = appLang === 'ar';
   if (isNativeAndroid()) {
     try {
       await FloatingBallOverlay.stopOverlay();
@@ -185,14 +211,14 @@ export async function disableExternalFloatingBall(): Promise<ExternalBallActionR
         success: true,
         mode: 'android',
         running: false,
-        message: 'تم إيقاف الكرة العائمة خارج التطبيق.',
+        message: isAr ? 'تم إيقاف الكرة العائمة خارج التطبيق.' : 'External floating ball stopped.',
       };
     } catch {
       return {
         success: false,
         mode: 'android',
         running: false,
-        message: 'تعذر إيقاف الكرة العائمة.',
+        message: isAr ? 'تعذر إيقاف الكرة العائمة.' : 'Failed to stop the floating ball.',
       };
     }
   }
@@ -205,7 +231,7 @@ export async function disableExternalFloatingBall(): Promise<ExternalBallActionR
       success: true,
       mode: 'pip',
       running: false,
-      message: 'تم إغلاق النافذة العائمة خارج التطبيق.',
+      message: isAr ? 'تم إغلاق النافذة العائمة خارج التطبيق.' : 'External floating window closed.',
     };
   }
 
@@ -213,15 +239,21 @@ export async function disableExternalFloatingBall(): Promise<ExternalBallActionR
     success: true,
     mode: isDocumentPiPSupported() ? 'pip' : 'unsupported',
     running: false,
-    message: 'الكرة العائمة الخارجية متوقفة.',
+    message: isAr ? 'الكرة العائمة الخارجية متوقفة.' : 'External floating ball is off.',
   };
 }
 
-function buildPipTranslatorUi(pipWin: Window, initialTargetLang: string, forceOffline: boolean) {
+function buildPipTranslatorUi(
+  pipWin: Window,
+  initialTargetLang: string,
+  forceOffline: boolean,
+  appLang: AppLanguage
+) {
+  const t = UI_LOCALES[appLang] || UI_LOCALES.ar;
   const doc = pipWin.document;
-  doc.documentElement.dir = 'rtl';
-  doc.documentElement.lang = 'ar';
-  doc.title = 'كرة الترجمة العائمة';
+  doc.documentElement.dir = appLang === 'ar' ? 'rtl' : 'ltr';
+  doc.documentElement.lang = appLang;
+  doc.title = t.floatingBall.popupTitle;
 
   const body = doc.body;
   body.style.margin = '0';
@@ -246,12 +278,12 @@ function buildPipTranslatorUi(pipWin: Window, initialTargetLang: string, forceOf
   header.style.justifyContent = 'space-between';
 
   const title = doc.createElement('strong');
-  title.textContent = '🔮 كرة الترجمة (خارج التطبيق)';
+  title.textContent = `🔮 ${t.floatingBall.popupTitle}`;
   title.style.fontSize = '13px';
   title.style.color = '#67e8f9';
 
   const closeBtn = doc.createElement('button');
-  closeBtn.textContent = 'عدم تفعيل ✕';
+  closeBtn.textContent = `${t.common.close} ✕`;
   closeBtn.style.background = '#4c0519';
   closeBtn.style.color = '#fda4af';
   closeBtn.style.border = '1px solid #be123c';
@@ -280,7 +312,7 @@ function buildPipTranslatorUi(pipWin: Window, initialTargetLang: string, forceOf
   for (const pack of AVAILABLE_PACKS) {
     const opt = doc.createElement('option');
     opt.value = pack.code;
-    opt.textContent = `${pack.flag} ${pack.nameAr}`;
+    opt.textContent = `${pack.flag} ${getLocalizedLangName(pack.code, appLang, pack.nameEn)}`;
     if (pack.code === initialTargetLang) opt.selected = true;
     select.appendChild(opt);
   }
@@ -288,7 +320,7 @@ function buildPipTranslatorUi(pipWin: Window, initialTargetLang: string, forceOf
 
   const input = doc.createElement('textarea');
   input.rows = 3;
-  input.placeholder = 'اكتب أو الصق أي نص لترجمته فوراً...';
+  input.placeholder = t.floatingBall.inputPlaceholder;
   input.style.width = '100%';
   input.style.boxSizing = 'border-box';
   input.style.background = '#020617';
@@ -301,7 +333,7 @@ function buildPipTranslatorUi(pipWin: Window, initialTargetLang: string, forceOf
   card.appendChild(input);
 
   const btn = doc.createElement('button');
-  btn.textContent = '⚡ ترجم الآن';
+  btn.textContent = `⚡ ${t.common.translateNow}`;
   btn.style.background = '#0284c7';
   btn.style.color = '#ffffff';
   btn.style.border = 'none';
@@ -313,7 +345,7 @@ function buildPipTranslatorUi(pipWin: Window, initialTargetLang: string, forceOf
   card.appendChild(btn);
 
   const output = doc.createElement('div');
-  output.textContent = 'الترجمة ستظهر هنا...';
+  output.textContent = '...';
   output.style.background = '#020617';
   output.style.border = '1px solid #164e63';
   output.style.borderRadius = '10px';
@@ -326,7 +358,7 @@ function buildPipTranslatorUi(pipWin: Window, initialTargetLang: string, forceOf
   const runTranslate = async () => {
     const text = input.value.trim();
     if (!text) return;
-    output.textContent = 'جاري الترجمة...';
+    output.textContent = t.common.translating;
     try {
       const res = await executeTranslation(text, 'auto', select.value, false, forceOffline);
       output.textContent = res.result.translatedText;

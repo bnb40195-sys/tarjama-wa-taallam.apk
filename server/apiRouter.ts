@@ -7,6 +7,7 @@ import {
   translateImageWithGemini,
   translateSubtitlesWithGemini,
   generateSubtitlesForVideoUrl,
+  translateBatchWithGemini,
 } from './geminiService.ts';
 import { translateOffline } from '../src/services/offlineEngine.ts';
 
@@ -118,6 +119,45 @@ apiRouter.post('/screen-translate', async (req, res) => {
       error: 'تعذر ترجمة عناصر الشاشة',
       message: err?.message,
     });
+  }
+});
+
+// Batch app strings & document file translation endpoint
+apiRouter.post('/translate-batch', async (req, res) => {
+  try {
+    const { items, from = 'auto', to = 'ar' } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'قائمة النصوص المطلوب ترجمتها فارغة' });
+    }
+    const sanitized = items
+      .slice(0, 60)
+      .map((item: any, idx: number) => ({
+        id: typeof item?.id === 'string' ? item.id : `item-${idx}`,
+        text: typeof item?.text === 'string' ? item.text : String(item?.text ?? ''),
+      }));
+
+    const translated = await translateBatchWithGemini(sanitized, from, to);
+    return res.json({ items: translated, from, to, usedOffline: false });
+  } catch (err: any) {
+    console.error('Batch translation error:', err);
+    try {
+      const { items = [], from = 'auto', to = 'ar' } = req.body || {};
+      const fallbackItems = (Array.isArray(items) ? items : []).map((item: any, idx: number) => {
+        const text = typeof item?.text === 'string' ? item.text : String(item?.text ?? '');
+        const resOffline = translateOffline(text, from, to);
+        return {
+          id: typeof item?.id === 'string' ? item.id : `item-${idx}`,
+          originalText: text,
+          translatedText: resOffline.translatedText || text,
+        };
+      });
+      return res.json({ items: fallbackItems, from, to, usedOffline: true });
+    } catch {
+      return res.status(500).json({
+        error: 'تعذر ترجمة دفعة الملف أو التطبيق',
+        message: err?.message,
+      });
+    }
   }
 });
 

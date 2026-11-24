@@ -10,6 +10,7 @@ import {
 } from './offlineEngine.ts';
 import { AVAILABLE_PACKS } from './offlineData.ts';
 import { TranslationResult, ImageTranslationResult } from '../../server/geminiService.ts';
+import { getLocalizedLangName, getStoredAppLanguage, UI_LOCALES } from './appTranslations.ts';
 
 export interface HistoryItem extends TranslationResult {
   id: string;
@@ -64,12 +65,15 @@ export async function executeTranslation(
   forceOfflineParam?: boolean
 ): Promise<{ result: TranslationResult; usedOffline: boolean }> {
   const isOffline = typeof forceOfflineParam === 'boolean' ? forceOfflineParam : isOfflineModeActive();
+  const uiLang = getStoredAppLanguage();
+  const ui = UI_LOCALES[uiLang] || UI_LOCALES.ar;
 
   // If in Offline Mode (by manual switch or loss of internet)
   if (isOffline) {
     const eligibility = checkOfflineTranslationEligibility(from, to);
     if (!eligibility.allowed) {
-      throw new Error(`حزمة اللغة (${eligibility.missingNameAr || to}) غير منزلة في جهازك! أنت حالياً في وضع الأوفلاين (بدون إنترنت). يرجى تنزيل الحزمة أولاً أو التبديل إلى وضع أونلاين 🌐.`);
+      const missingName = getLocalizedLangName(eligibility.missingCode || to, uiLang, eligibility.missingNameAr);
+      throw new Error(`${missingName}: ${ui.common.missingPackTitle} ${ui.common.missingPackHint}`);
     }
     const offResult = translateOffline(text, from, to);
     saveHistoryItem({ ...offResult, wasOffline: true });
@@ -86,7 +90,7 @@ export async function executeTranslation(
 
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
-      throw new Error(errJson.error || errJson.message || `خطأ ${response.status}`);
+      throw new Error(errJson.error || errJson.message || `HTTP ${response.status}`);
     }
 
     const data: TranslationResult = await response.json();
@@ -103,12 +107,13 @@ export async function executeTranslation(
     const eligibility = checkOfflineTranslationEligibility(from, to);
     if (isNetworkFailure && eligibility.allowed) {
       const offResult = translateOffline(text, from, to);
-      offResult.explanation = `(تم تشغيل حزمة الأوفلاين تلقائياً لعدم توفر الاتصال السحابي) ${offResult.explanation || ''}`;
+      offResult.explanation = `(${ui.common.offlineBadge}) ${offResult.explanation || ''}`;
       saveHistoryItem({ ...offResult, wasOffline: true });
       return { result: offResult, usedOffline: true };
     }
     if (isNetworkFailure && !eligibility.allowed) {
-      throw new Error(`تعذر الاتصال بالخادم السحابي، وحزمة اللغة (${eligibility.missingNameAr || to}) غير منزلة في جهازك. يرجى التحقق من الإنترنت أو تنزيل الحزمة لاستخدامها أوفلاين.`);
+      const missingName = getLocalizedLangName(eligibility.missingCode || to, uiLang, eligibility.missingNameAr);
+      throw new Error(`${missingName}: ${ui.common.missingPackTitle} ${ui.common.missingPackHint}`);
     }
     throw onlineError;
   }
@@ -123,12 +128,15 @@ export async function executeImageTranslation(
   forceOfflineParam?: boolean
 ): Promise<{ result: ImageTranslationResult; usedOffline: boolean }> {
   const isOffline = typeof forceOfflineParam === 'boolean' ? forceOfflineParam : isOfflineModeActive();
+  const uiLang = getStoredAppLanguage();
+  const ui = UI_LOCALES[uiLang] || UI_LOCALES.ar;
 
   // Offline mode check
   if (isOffline) {
     const eligibility = checkOfflineTranslationEligibility(from, to);
     if (!eligibility.allowed) {
-      throw new Error(`حزمة اللغة (${eligibility.missingNameAr || to}) غير منزلة في جهازك! أنت حالياً في وضع الأوفلاين.`);
+      const missingName = getLocalizedLangName(eligibility.missingCode || to, uiLang, eligibility.missingNameAr);
+      throw new Error(`${missingName}: ${ui.common.missingPackTitle} ${ui.common.missingPackHint}`);
     }
     const sampleOriginal = 'Emergency Exit - Keep Door Closed';
     const sampleBlock = 'Emergency Exit';
@@ -164,7 +172,7 @@ export async function executeImageTranslation(
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || errData.message || 'تعذر ترجمة الصورة سحابياً');
+      throw new Error(errData.error || errData.message || ui.cameraTab.cameraError);
     }
 
     const data: ImageTranslationResult = await response.json();

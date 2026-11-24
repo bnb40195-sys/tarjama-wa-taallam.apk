@@ -25,6 +25,7 @@ import {
   disableExternalFloatingBall,
   subscribeExternalBallChanged,
 } from '../services/systemFloatingBall.ts';
+import { useI18n } from '../services/i18nContext.tsx';
 
 interface FloatingBallProps {
   forceOffline: boolean;
@@ -37,6 +38,9 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
   onNavigateToSimulator,
   onClose,
 }) => {
+  const { appLang, t, isRtl, getLangName } = useI18n();
+  const fb = t.floatingBall;
+
   // Position coordinates of the floating ball
   const [position, setPosition] = useState({ x: 24, y: 160 });
   const [isDragging, setIsDragging] = useState(false);
@@ -51,8 +55,6 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
   const [targetLang, setTargetLang] = useState('ar');
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [lensActive, setLensActive] = useState(false);
-  const [lensHoverText, setLensHoverText] = useState('');
   const [externalRunning, setExternalRunning] = useState(false);
   const [externalMsg, setExternalMsg] = useState<string | null>(null);
 
@@ -106,7 +108,6 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
     setIsDragging(false);
     (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
 
-    // If it was just a click and not a drag, toggle popup
     if (!movedRef.current) {
       setIsOpen((prev) => !prev);
     }
@@ -117,7 +118,7 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
     if (!inputText.trim()) return;
 
     if (forceOffline && !isPackDownloaded(targetLang)) {
-      setTranslatedText(`⚠️ حزمة اللغة (${targetLang}) غير منزّلة في جهازك. الترجمة بدون نت تقتصر على الحزم المنزّلة فقط.`);
+      setTranslatedText(`⚠️ ${t.common.missingPackTitle} (${getLangName(targetLang)})`);
       return;
     }
 
@@ -125,8 +126,9 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
     try {
       const res = await executeTranslation(inputText, sourceLang, targetLang, false, forceOffline);
       setTranslatedText(res.result.translatedText);
-    } catch (err: any) {
-      setTranslatedText(err?.message || 'خطأ في الترجمة');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t.common.retry;
+      setTranslatedText(message);
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +153,6 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Quick preset sentences to test
   const quickTestPhrases = [
     'How can I help you today?',
     'Emergency exit only',
@@ -176,32 +177,27 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
         }`}
       >
         <div className="relative group">
-          {/* Pulsing ring animation */}
           <div className="absolute -inset-1.5 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 rounded-full blur-sm opacity-70 group-hover:opacity-100 animate-pulse transition duration-500" />
 
-          {/* Main sphere */}
           <div className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-slate-900 via-slate-800 to-blue-950 border-2 border-cyan-400/80 shadow-2xl flex items-center justify-center text-white overflow-hidden">
-            {/* Gloss reflection overlay */}
             <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent rounded-t-full pointer-events-none" />
 
             <div className="flex flex-col items-center justify-center">
               <span className="text-xl">🔮</span>
-              <span className="text-[8px] font-bold tracking-tight text-cyan-300">ترجمة</span>
+              <span className="text-[8px] font-bold tracking-tight text-cyan-300">{fb.ballWord}</span>
             </div>
 
-            {/* Offline / Online mini badge */}
             <div
               className={`absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${
                 forceOffline ? 'bg-amber-400' : 'bg-emerald-400'
               }`}
-              title={forceOffline ? 'وضع بدون إنترنت' : 'متصل بالإنترنت'}
+              title={forceOffline ? t.common.offlineLabel : t.common.onlineLabel}
             />
           </div>
 
-          {/* Tooltip on hover */}
-          {!isOpen && (
+          {!isOpen && !hasMoved && (
             <div className="absolute left-1/2 -translate-x-1/2 -bottom-7 bg-slate-900/95 text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-700 whitespace-nowrap shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition">
-              انقر للترجمة السريعة
+              {fb.hoverHint}
             </div>
           )}
         </div>
@@ -220,10 +216,10 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-              <h3 className="font-bold text-sm text-cyan-300 flex items-center gap-1.5">
-                <span>كرة الترجمة الفورية</span>
+              <h3 className="font-bold text-sm text-cyan-300 flex items-center gap-1.5 flex-wrap">
+                <span>{fb.popupTitle}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
-                  {forceOffline ? 'أوفلاين: حزم الجهاز 📴' : 'سحابي متصل 🌐'}
+                  {forceOffline ? fb.offlineBadge : fb.onlineBadge}
                 </span>
               </h3>
             </div>
@@ -234,13 +230,14 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
                   onNavigateToSimulator();
                 }}
                 className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-cyan-300 transition text-xs flex items-center gap-1"
-                title="فتح محاكي شاشة الهاتف الكامل"
+                title={fb.openSimTitle}
               >
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                aria-label={t.common.close}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -250,14 +247,14 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
           {/* Activate / Deactivate Choice Bar */}
           <div className="mt-2.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold text-slate-300">حالة الكرة العائمة:</span>
+              <span className="text-[11px] font-bold text-slate-300">{fb.ballStatusLabel}</span>
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setIsOpen(true)}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/25 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold transition"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>تفعيل</span>
+                  <span>{t.common.enable}</span>
                 </button>
                 <button
                   onClick={() => {
@@ -267,7 +264,7 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-600/25 border border-slate-700 hover:border-rose-500/50 text-slate-300 hover:text-rose-300 text-[11px] font-bold transition"
                 >
                   <PowerOff className="w-3.5 h-3.5 text-rose-400" />
-                  <span>عدم تفعيل</span>
+                  <span>{t.common.disable}</span>
                 </button>
               </div>
             </div>
@@ -275,13 +272,13 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
             <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-2">
               <span className="text-[10px] font-bold text-cyan-300 flex items-center gap-1">
                 <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                <span>الظهور خارج التطبيق:</span>
+                <span>{fb.externalLabel}</span>
               </span>
               <button
                 onClick={async () => {
                   const res = externalRunning
-                    ? await disableExternalFloatingBall()
-                    : await enableExternalFloatingBall(targetLang, forceOffline);
+                    ? await disableExternalFloatingBall(appLang)
+                    : await enableExternalFloatingBall(targetLang, forceOffline, appLang);
                   setExternalRunning(res.running);
                   setExternalMsg(res.message);
                 }}
@@ -291,7 +288,7 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
                     : 'bg-cyan-600/25 border-cyan-500/50 text-cyan-200 hover:bg-cyan-600/35'
                 }`}
               >
-                {externalRunning ? 'إيقاف خارج التطبيق' : 'تشغيل على الشاشة الرئيسية'}
+                {externalRunning ? fb.stopExternal : fb.startExternal}
               </button>
             </div>
 
@@ -307,12 +304,12 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
             <select
               value={sourceLang}
               onChange={(e) => setSourceLang(e.target.value)}
-              className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer"
+              className="bg-transparent text-slate-200 outline-none font-medium cursor-pointer max-w-[130px]"
             >
-              <option value="auto" className="bg-slate-900">تلقائي (كشف اللغة)</option>
+              <option value="auto" className="bg-slate-900">{t.common.autoDetectSmart}</option>
               {AVAILABLE_PACKS.map((p) => (
                 <option key={p.code} value={p.code} className="bg-slate-900">
-                  {p.flag} {p.nameAr}
+                  {p.flag} {getLangName(p.code, p.nameEn)}
                 </option>
               ))}
             </select>
@@ -325,7 +322,7 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
                 setTargetLang(temp);
               }}
               className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-cyan-400 transition"
-              title="تبديل اللغات"
+              title={t.common.swapLanguages}
             >
               <ArrowRightLeft className="w-3.5 h-3.5" />
             </button>
@@ -333,11 +330,11 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
             <select
               value={targetLang}
               onChange={(e) => setTargetLang(e.target.value)}
-              className="bg-transparent text-cyan-300 font-bold outline-none cursor-pointer"
+              className="bg-transparent text-cyan-300 font-bold outline-none cursor-pointer max-w-[130px]"
             >
               {AVAILABLE_PACKS.map((p) => (
                 <option key={p.code} value={p.code} className="bg-slate-900">
-                  {p.flag} {p.nameAr}
+                  {p.flag} {getLangName(p.code, p.nameEn)}
                 </option>
               ))}
             </select>
@@ -350,7 +347,7 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="اكتب أو الصق نصاً لترجمته فوراً..."
+                placeholder={fb.inputPlaceholder}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/80 transition"
                 autoFocus
               />
@@ -360,14 +357,13 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
                     setInputText('');
                     setTranslatedText('');
                   }}
-                  className="absolute left-2 top-2 text-slate-400 hover:text-white"
+                  className={`absolute ${isRtl ? 'left-2' : 'right-2'} top-2 text-slate-400 hover:text-white`}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            {/* Quick preset chips */}
             {!inputText && (
               <div className="flex flex-wrap gap-1 pt-1">
                 {quickTestPhrases.map((phrase, idx) => (
@@ -382,11 +378,10 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
               </div>
             )}
 
-            {/* Result Area */}
             {isLoading ? (
               <div className="py-4 text-center text-xs text-cyan-400 flex items-center justify-center gap-2">
                 <span className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                <span>جاري الترجمة الفورية...</span>
+                <span>{fb.translating}</span>
               </div>
             ) : translatedText ? (
               <div className="p-3 bg-gradient-to-br from-slate-950 to-blue-950/40 border border-cyan-500/20 rounded-xl space-y-2">
@@ -398,14 +393,14 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
                     <button
                       onClick={() => speakText(translatedText, targetLang)}
                       className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-300 transition"
-                      title="استماع للنطق"
+                      title={t.common.listen}
                     >
                       <Volume2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={handleCopy}
                       className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition"
-                      title="نسخ الترجمة"
+                      title={t.common.copy}
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -424,13 +419,13 @@ export const FloatingBall: React.FC<FloatingBallProps> = ({
               }}
               className="text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1 hover:underline"
             >
-              <span>تجربة الكرة في محاكي الهاتف الكامل 📱</span>
+              <span>{fb.tryFullSim}</span>
             </button>
             <button
               onClick={onClose}
               className="text-slate-500 hover:text-slate-300"
             >
-              إخفاء الكرة
+              {fb.hideBall}
             </button>
           </div>
         </div>

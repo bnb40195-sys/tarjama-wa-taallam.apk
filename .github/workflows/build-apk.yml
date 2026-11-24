@@ -65,10 +65,61 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_ROOT" ]; then
+            SDK_ROOT="$HOME/Android/Sdk"
+            mkdir -p "$SDK_ROOT"
+          fi
+
+          SDKMANAGER=""
+          if [ -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          else
+            FOUND_SM="$(find "$SDK_ROOT" -maxdepth 4 -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
+            if [ -n "$FOUND_SM" ]; then
+              chmod +x "$FOUND_SM"
+              SDKMANAGER="$FOUND_SM"
+            fi
+          fi
+
+          if [ -z "$SDKMANAGER" ]; then
+            TMP_ZIP="/tmp/cmdline-tools.zip"
+            curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o "$TMP_ZIP"
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            rm -rf "$SDK_ROOT/cmdline-tools/latest" /tmp/cmdline-unpack
+            unzip -q "$TMP_ZIP" -d /tmp/cmdline-unpack
+            mv /tmp/cmdline-unpack/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+            rm -rf "$TMP_ZIP" /tmp/cmdline-unpack
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+            chmod +x "$SDKMANAGER"
+          fi
+
+          echo "Using sdkmanager: $SDKMANAGER (SDK_ROOT=$SDK_ROOT)"
+
+          set +o pipefail
+          yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
+          set -o pipefail
+
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+
+          printf "sdk.dir=%s\n" "$SDK_ROOT" > android/local.properties
 
       - name: Make Gradle Wrapper Executable
         run: chmod +x android/gradlew

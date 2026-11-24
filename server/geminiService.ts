@@ -480,3 +480,96 @@ Return ONLY a valid JSON array matching this format:
     ];
   }
 }
+
+export interface BatchTranslationItem {
+  id: string;
+  text: string;
+}
+
+export interface BatchTranslationResultItem {
+  id: string;
+  originalText: string;
+  translatedText: string;
+}
+
+export async function translateBatchWithGemini(
+  items: BatchTranslationItem[],
+  sourceLang: string = 'auto',
+  targetLang: string = 'ar'
+): Promise<BatchTranslationResultItem[]> {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (apiKey) {
+    try {
+      const prompt = `You are a professional software localization and document translator.
+Translate each item's "text" from ${sourceLang === 'auto' ? 'auto-detected language' : sourceLang} into ${targetLang}.
+CRITICAL RULES:
+1. Preserve every placeholder/variable exactly as written (e.g. %s, %1$s, %d, {0}, {name}, {{var}}, \\n, HTML tags).
+2. Keep the exact same "id" for every item.
+3. Return ONLY a valid JSON array matching: [{"id": "...", "translatedText": "..."}].
+
+Items:
+${JSON.stringify(items)}`;
+
+      const ai = getAI();
+      const generatePromise = ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.15,
+          systemInstruction: 'You are an expert app and file localization translator. Output valid JSON array only.',
+        },
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Batch cloud timeout')), 12000)
+      );
+
+      const response: any = await Promise.race([generatePromise, timeoutPromise]);
+      if (response && response.text) {
+        const parsed = JSON.parse(response.text.trim());
+        if (Array.isArray(parsed)) {
+          const map = new Map<string, string>();
+          for (const row of parsed) {
+            if (row && typeof row.id === 'string' && typeof row.translatedText === 'string') {
+              map.set(row.id, row.translatedText);
+            }
+          }
+          if (map.size > 0) {
+            return items.map((it) => ({
+              id: it.id,
+              originalText: it.text,
+              translatedText: map.get(it.id) ?? it.text,
+            }));
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Gemini batch call bypassed, falling back to per-item cloud translate:', err?.message);
+    }
+  }
+
+  // Fallback: translate using universal Google Translate endpoint via separator or parallel requests
+  const results = await Promise.all(
+    items.map(async (it) => {
+      try {
+        const single = await translateTextWithGemini(it.text, sourceLang, targetLang, false);
+        return {
+          id: it.id,
+          originalText: it.text,
+          translatedText: single.translatedText || it.text,
+        };
+      } catch {
+        return {
+          id: it.id,
+          originalText: it.text,
+          translatedText: it.text,
+        };
+      }
+    })
+  );
+  return results;
+}
+

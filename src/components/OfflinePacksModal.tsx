@@ -16,6 +16,7 @@ import {
   downloadPackFileToDevice,
   deleteLanguagePack,
 } from '../services/offlineEngine.ts';
+import { useI18n } from '../services/i18nContext.tsx';
 
 interface OfflinePacksModalProps {
   isOpen?: boolean;
@@ -31,10 +32,9 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
   isOpen = true,
   onClose,
   isStandaloneTab = false,
-  forceOffline,
-  networkMode,
-  onToggleMode,
 }) => {
+  const { appLang, t, isRtl, getLangName } = useI18n();
+  const p = t.packsModal;
   const [installedPacks, setInstalledPacks] = useState<string[]>(getInstalledPacks());
   const [downloadingCode, setDownloadingCode] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
@@ -79,7 +79,6 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
 
   const content = (
     <div className="space-y-6">
-
       {/* Language Packs List Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {AVAILABLE_PACKS.map((pack) => {
@@ -87,6 +86,8 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
           const isDownloading = downloadingCode === pack.code;
           const isArabic = pack.code === 'ar';
           const isEnglish = pack.code === 'en';
+          const localizedName = getLangName(pack.code, pack.nameEn);
+          const formattedWords = `+${pack.wordCount.toLocaleString()} ${t.common.words}`;
 
           return (
             <div
@@ -107,18 +108,22 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
                     <span className="text-3xl shrink-0">{pack.flag}</span>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-bold text-base text-white">{pack.nameAr}</h4>
+                        <h4 className="font-bold text-base text-white">{localizedName}</h4>
                         <span className="text-xs text-slate-400 font-medium">({pack.nameEn})</span>
                       </div>
 
                       <p className="text-xs text-slate-300 mt-1 line-clamp-2">
-                        {pack.descriptionAr || `ملف حزمة ${pack.nameAr} الحقيقي بدون إنترنت`}
+                        {appLang === 'ar'
+                          ? pack.descriptionAr || `${localizedName} (${pack.nameEn})`
+                          : pack.nameEn}
                       </p>
 
                       <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400 font-mono">
-                        <span className="text-cyan-400 font-bold">{pack.heritageWordsFormatted || `+${pack.wordCount.toLocaleString()} كلمة`}</span>
+                        <span className="text-cyan-400 font-bold">{formattedWords}</span>
                         <span>•</span>
-                        <span>حجم الملف: {pack.sizeMb} MB</span>
+                        <span>
+                          {p.fileSizeLabel} {pack.sizeMb} {t.common.mb}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -128,11 +133,11 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
                     {isInstalled ? (
                       <span className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 text-xs font-bold">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>مثبتة</span>
+                        <span>{p.installedBadge}</span>
                       </span>
                     ) : (
                       <span className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700">
-                        متاحة
+                        {p.availableBadge}
                       </span>
                     )}
                   </div>
@@ -148,8 +153,8 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
                       className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full rounded-full transition-all duration-150"
                     />
                   </div>
-                  <span className="text-[10px] text-slate-400 block text-left">
-                    جاري سحب ملف الحزمة الحقيقي وتخزينه في جهازك ({downloadProgress}%)...
+                  <span className="text-[10px] text-slate-400 block text-end">
+                    {p.downloadingPack} ({downloadProgress}%)...
                   </span>
                 </div>
               )}
@@ -157,23 +162,20 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
               {/* Actions Toolbar */}
               <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
-                  {/* Download real JSON file to PC / Mobile */}
                   <button
                     onClick={() => handleSaveFileToDisk(pack.code)}
                     className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition border border-slate-700 hover:border-cyan-500/50"
-                    title="حفظ ملف الحزمة الحقيقي (.json) على جهازك مباشرة"
                   >
                     <Download className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>تحميل ملف (.json) 💾</span>
+                    <span>{p.downloadJsonBtn}</span>
                   </button>
 
                   <button
                     onClick={() => setSelectedPackForPreview(pack)}
                     className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1 transition"
-                    title="معاينة محتويات الحزمة"
                   >
                     <Info className="w-3.5 h-3.5" />
-                    <span>تفاصيل</span>
+                    <span>{p.detailsBtn}</span>
                   </button>
                 </div>
 
@@ -184,7 +186,7 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
                         <button
                           onClick={() => handleDelete(pack.code)}
                           className="p-1.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-slate-800 transition"
-                          title="حذف الحزمة لتحرير المساحة"
+                          title={t.common.delete}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -201,7 +203,7 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
                       className="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-cyan-900/20 transition active:scale-95"
                     >
                       <DownloadCloud className="w-3.5 h-3.5" />
-                      <span>تثبيت أوفلاين</span>
+                      <span>{p.installOfflineBtn}</span>
                     </button>
                   )}
                 </div>
@@ -218,7 +220,7 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xl">{selectedPackForPreview.flag}</span>
               <strong className="text-sm font-bold text-white">
-                تفاصيل ملف حزمة: {selectedPackForPreview.nameAr} ({selectedPackForPreview.nameEn})
+                {p.packDetailsPrefix} {getLangName(selectedPackForPreview.code, selectedPackForPreview.nameEn)} ({selectedPackForPreview.nameEn})
               </strong>
             </div>
             <button
@@ -230,35 +232,39 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
           </div>
 
           <p className="text-slate-300 leading-relaxed">
-            {selectedPackForPreview.descriptionAr}
+            {appLang === 'ar' ? selectedPackForPreview.descriptionAr : selectedPackForPreview.nameEn}
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-400">
             <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="block text-[10px] text-slate-500">مسار الملف:</span>
+              <span className="block text-[10px] text-slate-500">{p.filePathLabel}</span>
               <span className="font-mono text-cyan-300 text-[11px]">{selectedPackForPreview.fileUrl}</span>
             </div>
             <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="block text-[10px] text-slate-500">إجمالي المفردات:</span>
-              <span className="font-bold text-white">{selectedPackForPreview.heritageWordsFormatted || selectedPackForPreview.wordCount}</span>
+              <span className="block text-[10px] text-slate-500">{p.totalWordsLabel}</span>
+              <span className="font-bold text-white">
+                {selectedPackForPreview.wordCount.toLocaleString()} {t.common.words}
+              </span>
             </div>
             <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="block text-[10px] text-slate-500">حجم الملف:</span>
-              <span className="font-bold text-emerald-400">{selectedPackForPreview.sizeMb} ميجابايت</span>
+              <span className="block text-[10px] text-slate-500">{p.fileSizeLabel}</span>
+              <span className="font-bold text-emerald-400">
+                {selectedPackForPreview.sizeMb} {t.common.mb}
+              </span>
             </div>
             <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-              <span className="block text-[10px] text-slate-500">الترخيص:</span>
-              <span className="font-bold text-cyan-300">مفتوح ومجاني</span>
+              <span className="block text-[10px] text-slate-500">{p.licenseLabel}</span>
+              <span className="font-bold text-cyan-300">{p.licenseOpenFree}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1 flex-wrap">
             <button
               onClick={() => handleSaveFileToDisk(selectedPackForPreview.code)}
               className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:brightness-110 text-white font-bold flex items-center gap-1.5 shadow-md"
             >
               <Download className="w-4 h-4" />
-              <span>تنزيل ملف JSON الحقيقي لجهازك</span>
+              <span>{p.downloadJsonDevice}</span>
             </button>
             <a
               href={selectedPackForPreview.fileUrl}
@@ -267,7 +273,7 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
               className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold flex items-center gap-1.5"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>فتح الملف بالمتصفح</span>
+              <span>{p.openInBrowser}</span>
             </a>
           </div>
         </div>
@@ -277,11 +283,9 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
       <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 text-xs text-slate-400 space-y-2">
         <div className="flex items-center gap-1.5 font-bold text-slate-300">
           <Info className="w-4 h-4 text-cyan-400" />
-          <span>كيف تعمل ملفات الحزم الحقيقية بدون إنترنت؟</span>
+          <span>{p.howItWorksTitle}</span>
         </div>
-        <p className="leading-relaxed">
-          عند النقر على "تثبيت أوفلاين"، يتم جلب ملف الحزمة الكامل من مسار السيرفر الحقيقي وتخزينه في الذاكرة المحلية للجهاز. وعند تفعيل "وضع أوفلاين 📴" أو انقطاع شبكة الإنترنت، يعتمد محرك الترجمة والقاموس الشامل على ملف الحزمة المثبت مباشرة دون الحاجة لأي خادم أو اتصال!
-        </p>
+        <p className="leading-relaxed">{p.howItWorksDesc}</p>
       </div>
     </div>
   );
@@ -299,7 +303,8 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
       <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl shadow-cyan-950/40">
         <button
           onClick={onClose}
-          className="absolute top-4 left-4 p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition"
+          className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition`}
+          aria-label={t.common.close}
         >
           <X className="w-5 h-5" />
         </button>

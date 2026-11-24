@@ -25,6 +25,7 @@ import {
   disableExternalFloatingBall,
   subscribeExternalBallChanged,
 } from '../services/systemFloatingBall.ts';
+import { useI18n } from '../services/i18nContext.tsx';
 
 interface ScreenElement {
   id: string;
@@ -36,18 +37,18 @@ interface ScreenElement {
 }
 
 export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ forceOffline }) => {
+  const { appLang, t } = useI18n();
+  const s = t.screenTab;
+
   const [selectedApp, setSelectedApp] = useState<'chat' | 'social' | 'article' | 'menu'>('chat');
   const [isScreenTranslated, setIsScreenTranslated] = useState(false);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
-  const [activeTooltip, setActiveTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [ballPosition, setBallPosition] = useState({ x: 260, y: 220 });
   const [isDraggingBall, setIsDraggingBall] = useState(false);
   const [ballMenuOpen, setBallMenuOpen] = useState(false);
   const [ballOrigin, setBallOrigin] = useState({ x: 0, y: 0 });
   const [ballMoved, setBallMoved] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [customMsg, setCustomMsg] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [externalBallRunning, setExternalBallRunning] = useState(false);
   const [externalNotice, setExternalNotice] = useState<string | null>(null);
 
@@ -76,7 +77,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
     },
     {
       id: 'c2',
-      originalText: 'Yes, around 9:30 AM. Don\'t forget to bring your passport and travel tickets.',
+      originalText: "Yes, around 9:30 AM. Don't forget to bring your passport and travel tickets.",
       translatedText: 'نعم، حوالي الساعة 9:30 صباحاً. لا تنسَ إحضار جواز سفرك وتذاكر السفر.',
       sender: 'David',
       time: '10:15 AM',
@@ -103,10 +104,11 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
   // App 2: Social Media Post
   const socialPost = {
     user: 'Tech Insider @GlobalTech',
-    originalText: 'Breaking: Offline neural translation is now officially supported on all mobile devices without internet connection!',
-    translatedText: 'عاجل: الترجمة العصبية بدون اتصال بالإنترنت مدعومة الآن رسمياً على جميع الهواتف المحمولة بدون الحاجة للإنترنت!',
+    originalText:
+      'Breaking: Offline neural translation is now officially supported on all mobile devices without internet connection!',
+    translatedText:
+      'عاجل: الترجمة العصبية بدون اتصال بالإنترنت مدعومة الآن رسمياً على جميع الهواتف المحمولة بدون الحاجة للإنترنت!',
     date: '2h ago',
-    likes: '14.2K',
     comments: [
       {
         id: 's1',
@@ -127,7 +129,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
   const menuItems: ScreenElement[] = [
     {
       id: 'm1',
-      originalText: 'Soupe à l\'oignon gratinée avec fromage fondu',
+      originalText: "Soupe à l'oignon gratinée avec fromage fondu",
       translatedText: 'شوربة بصل بالجبن المحمص والمذاب',
     },
     {
@@ -147,10 +149,6 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
     setIsDraggingBall(true);
     setBallMoved(false);
     setBallOrigin({ x: e.clientX, y: e.clientY });
-    setDragOffset({
-      x: e.clientX - ballPosition.x,
-      y: e.clientY - ballPosition.y,
-    });
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   };
 
@@ -173,42 +171,36 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
     (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
   };
 
-  // Add custom message to chat
+  // Add custom message to chat (translates to active app language)
   const handleAddCustomMsg = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customMsg.trim()) return;
 
     try {
-      const res = await executeTranslation(customMsg, 'auto', 'ar', false, forceOffline);
+      const res = await executeTranslation(customMsg, 'auto', appLang, false, forceOffline);
       const newElem: ScreenElement = {
         id: `custom_${Date.now()}`,
         originalText: customMsg,
         translatedText: res.result.translatedText,
-        sender: 'شخص أجنبي',
-        time: 'الآن',
+        sender: t.textTab.speaker2,
+        time: new Date().toLocaleTimeString(appLang, { hour: '2-digit', minute: '2-digit' }),
         isMe: false,
       };
       setChatMessages((prev) => [...prev, newElem]);
       setCustomMsg('');
     } catch {
-      const offlineTranslated = translateOffline(customMsg, 'auto', 'ar').translatedText;
+      const offlineTranslated = translateOffline(customMsg, 'auto', appLang).translatedText;
       const newElem: ScreenElement = {
         id: `custom_${Date.now()}`,
         originalText: customMsg,
         translatedText: offlineTranslated || customMsg,
-        sender: 'شخص أجنبي',
-        time: 'الآن',
+        sender: t.textTab.speaker2,
+        time: new Date().toLocaleTimeString(appLang, { hour: '2-digit', minute: '2-digit' }),
         isMe: false,
       };
       setChatMessages((prev) => [...prev, newElem]);
       setCustomMsg('');
     }
-  };
-
-  const copyText = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
   };
 
   return (
@@ -217,22 +209,26 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 border border-cyan-500/30 rounded-3xl p-6 shadow-xl">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="px-3 py-1 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 text-xs font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                تقنية الكرة العائمة على شاشة الهاتف
+                {s.techBadge}
               </span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
-                forceOffline ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800'
-              }`}>
-                {forceOffline ? 'أوفلاين: الحزم المنزّلة فقط 📴' : 'سحابي متصل 🌐'}
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
+                  forceOffline
+                    ? 'bg-amber-950 text-amber-300 border-amber-800'
+                    : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                }`}
+              >
+                {forceOffline ? t.common.offlineBadge : t.common.onlineBadge}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
-              محاكي ترجمة الشاشة والكرة العائمة للهواتف
+              {s.title}
             </h2>
             <p className="text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              هنا يمكنك تجربة الكرة العائمة مباشرة داخل محاكي شاشة الهاتف. اسحب الكرة وضعها فوق أي رسالة أو منشور لتترجمه فوراً، أو انقر على الكرة لترجمة كامل نصوص الشاشة دفعة واحدة!
+              {s.subtitle}
             </p>
           </div>
 
@@ -240,8 +236,8 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
             <button
               onClick={async () => {
                 const res = externalBallRunning
-                  ? await disableExternalFloatingBall()
-                  : await enableExternalFloatingBall('ar', forceOffline);
+                  ? await disableExternalFloatingBall(appLang)
+                  : await enableExternalFloatingBall(appLang, forceOffline, appLang);
                 setExternalBallRunning(res.running);
                 setExternalNotice(res.message);
               }}
@@ -253,9 +249,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
             >
               <Smartphone className="w-4 h-4" />
               <span>
-                {externalBallRunning
-                  ? 'إيقاف الكرة خارج التطبيق'
-                  : '📱 تشغيل الكرة خارج التطبيق (الشاشة الرئيسية)'}
+                {externalBallRunning ? s.stopExternalBall : s.startExternalBall}
               </span>
             </button>
 
@@ -268,7 +262,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
               }`}
             >
               <Sparkles className="w-4 h-4" />
-              <span>{isScreenTranslated ? 'إلغاء ترجمة الشاشة (عرض الأصلي)' : '⚡ ترجمة كامل الشاشة الآن'}</span>
+              <span>{isScreenTranslated ? s.restoreOriginal : s.translateFullScreen}</span>
             </button>
           </div>
         </div>
@@ -280,14 +274,14 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
               onClick={() => setExternalNotice(null)}
               className="text-slate-400 hover:text-white text-[11px] font-bold"
             >
-              إغلاق
+              {t.common.close}
             </button>
           </div>
         )}
 
         {/* App Switcher Tabs */}
         <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-slate-800/80">
-          <span className="text-xs font-bold text-slate-400 self-center ml-2">اختر تطبيق للتجربة:</span>
+          <span className="text-xs font-bold text-slate-400 self-center me-2">{s.chooseApp}</span>
           <button
             onClick={() => setSelectedApp('chat')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
@@ -297,7 +291,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>محادثات واتساب (WhatsApp)</span>
+            <span>{s.appWhatsapp}</span>
           </button>
 
           <button
@@ -309,7 +303,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
             }`}
           >
             <Twitter className="w-3.5 h-3.5" />
-            <span>منشورات تويتر / X</span>
+            <span>{s.appTwitter}</span>
           </button>
 
           <button
@@ -321,7 +315,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
             }`}
           >
             <Utensils className="w-3.5 h-3.5" />
-            <span>قائمة مطعم فرنسي (Menu)</span>
+            <span>{s.appMenu}</span>
           </button>
         </div>
       </div>
@@ -361,7 +355,6 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                   touchAction: 'none',
                 }}
                 className="absolute top-0 left-0 z-40 cursor-grab active:cursor-grabbing transition-transform"
-                title="اسحب الكرة فوق أي نص لترجمته أو اضغط عليها"
               >
                 <div className="relative group">
                   <div className="absolute -inset-2 bg-cyan-500/60 rounded-full blur-md animate-pulse" />
@@ -375,7 +368,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                     className="relative w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-700 border-2 border-white/80 shadow-2xl flex flex-col items-center justify-center text-white cursor-pointer hover:scale-110 active:scale-95 transition"
                   >
                     <span className="text-base">🔮</span>
-                    <span className="text-[7px] font-black tracking-tighter">ترجم</span>
+                    <span className="text-[7px] font-black tracking-tighter">{s.ballLabel}</span>
                   </div>
 
                   {/* Activate / Deactivate Choice Popover on Click */}
@@ -398,7 +391,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                       >
                         <span className="flex items-center gap-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>تفعيل</span>
+                          <span>{t.common.enable}</span>
                         </span>
                         {isScreenTranslated && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
                       </button>
@@ -416,15 +409,14 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                       >
                         <span className="flex items-center gap-1.5">
                           <PowerOff className="w-3.5 h-3.5 text-rose-400" />
-                          <span>عدم تفعيل</span>
+                          <span>{t.common.disable}</span>
                         </span>
                         {!isScreenTranslated && <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
                       </button>
                     </div>
                   ) : (
-                    /* Bubble Hint */
                     <div className="absolute left-1/2 -translate-x-1/2 -top-6 bg-slate-900/90 text-[9px] text-cyan-300 font-bold px-1.5 py-0.5 rounded whitespace-nowrap border border-cyan-800 pointer-events-none">
-                      اسحبني أو انقر
+                      {s.ballDragHint}
                     </div>
                   )}
                 </div>
@@ -434,7 +426,6 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
               <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-16">
                 {selectedApp === 'chat' && (
                   <div className="space-y-3">
-                    {/* Chat Header */}
                     <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold">
@@ -442,13 +433,12 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                         </div>
                         <div>
                           <h4 className="text-xs font-bold text-white">David (London, UK)</h4>
-                          <span className="text-[10px] text-emerald-400">متصل الآن</span>
+                          <span className="text-[10px] text-emerald-400">{s.onlineNow}</span>
                         </div>
                       </div>
                       <span className="text-[10px] text-slate-500 font-mono">WhatsApp</span>
                     </div>
 
-                    {/* Messages */}
                     {chatMessages.map((msg) => {
                       const showTrans = isScreenTranslated || hoveredElementId === msg.id;
                       return (
@@ -465,14 +455,13 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                                 : 'bg-slate-800/90 text-slate-100 rounded-bl-none border border-slate-700/60'
                             } ${showTrans ? 'ring-2 ring-cyan-400 bg-slate-850' : ''}`}
                           >
-                            {/* In-place translation highlight badge */}
                             {showTrans && (
                               <div className="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b border-cyan-500/30 text-[10px] text-cyan-300 font-bold">
-                                <span>⚡ ترجمة فورية</span>
+                                <span>{s.instantTranslationTag}</span>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    speakText(msg.translatedText, 'ar');
+                                    speakText(msg.translatedText, appLang);
                                   }}
                                   className="hover:text-white"
                                 >
@@ -487,7 +476,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
 
                             {showTrans && (
                               <p className="text-[10px] text-slate-400 mt-1 italic border-t border-slate-700/50 pt-1">
-                                الأصلي: {msg.originalText}
+                                {s.originalTag} {msg.originalText}
                               </p>
                             )}
 
@@ -504,7 +493,6 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
 
                 {selectedApp === 'social' && (
                   <div className="space-y-3">
-                    {/* Social Post */}
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold">
@@ -526,20 +514,19 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                         </p>
                         {isScreenTranslated && (
                           <p className="text-[10px] text-slate-400 mt-1 italic">
-                            Original: {socialPost.originalText}
+                            {s.originalTag} {socialPost.originalText}
                           </p>
                         )}
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                        <span>💬 412 تعليق</span>
-                        <span>❤️ {socialPost.likes} إعجاب</span>
+                        <span>{s.commentsCount}</span>
+                        <span>{s.likesCount}</span>
                       </div>
                     </div>
 
-                    {/* Comments */}
                     <div className="space-y-2">
-                      <span className="text-[11px] font-bold text-slate-400">التعليقات:</span>
+                      <span className="text-[11px] font-bold text-slate-400">{s.commentsLabel}</span>
                       {socialPost.comments.map((cm) => (
                         <div
                           key={cm.id}
@@ -562,7 +549,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                     <div className="text-center p-3 rounded-2xl bg-amber-950/30 border border-amber-800/40">
                       <span className="text-lg">🍷</span>
                       <h3 className="font-bold text-sm text-amber-200">Le Bistro Parisien</h3>
-                      <p className="text-[10px] text-amber-300/70">قائمة الطعام الباريسية الفاخرة</p>
+                      <p className="text-[10px] text-amber-300/70">{s.menuSubtitle}</p>
                     </div>
 
                     <div className="space-y-2">
@@ -577,7 +564,9 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                         >
                           <div className="flex justify-between items-start gap-2">
                             <div>
-                              <span className="text-[10px] font-bold text-amber-400">طبق {idx + 1}</span>
+                              <span className="text-[10px] font-bold text-amber-400">
+                                {s.dishPrefix} {idx + 1}
+                              </span>
                               <h5 className="font-bold text-xs mt-0.5">
                                 {isScreenTranslated ? item.translatedText : item.originalText}
                               </h5>
@@ -596,11 +585,11 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                 )}
               </div>
 
-              {/* Simulated Phone Bottom Nav / Input Bar */}
+              {/* Simulated Phone Bottom Nav */}
               <div className="h-14 bg-slate-900/90 border-t border-slate-800 px-3 flex items-center justify-between text-xs">
-                <span className="text-[11px] text-slate-400">الكرة العائمة مفعلة ومستعدة للترجمة</span>
+                <span className="text-[11px] text-slate-400">{s.bottomStatus}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 font-mono">
-                  Tarjuman OS
+                  {t.common.appName}
                 </span>
               </div>
             </div>
@@ -609,15 +598,14 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
 
         {/* Controls and Custom Testing Panel */}
         <div className="lg:col-span-5 space-y-4">
-          {/* Custom Message Injector */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg space-y-4">
             <div className="flex items-center gap-2">
               <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400">
                 <MessageSquare className="w-4 h-4" />
               </span>
               <div>
-                <h3 className="font-bold text-sm text-white">إرسال رسالة أجنبية لتجربة الترجمة</h3>
-                <p className="text-xs text-slate-400">اكتب أي جملة بأي لغة واشهد ترجمتها فوراً عبر الكرة العائمة</p>
+                <h3 className="font-bold text-sm text-white">{s.injectTitle}</h3>
+                <p className="text-xs text-slate-400">{s.injectSubtitle}</p>
               </div>
             </div>
 
@@ -626,7 +614,7 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                 type="text"
                 value={customMsg}
                 onChange={(e) => setCustomMsg(e.target.value)}
-                placeholder="مثال: Could you please send me the location coordinates?"
+                placeholder={s.injectPlaceholder}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
               />
               <div className="flex justify-end gap-2">
@@ -636,30 +624,29 @@ export const ScreenTranslatorSim: React.FC<{ forceOffline: boolean }> = ({ force
                   className="px-4 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>إرسال إلى محاكي الهاتف</span>
+                  <span>{s.injectBtn}</span>
                 </button>
               </div>
             </form>
           </div>
 
-          {/* How the Floating Ball works guide */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 shadow-lg space-y-3">
             <h4 className="font-bold text-sm text-cyan-300 flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
-              <span>كيف تعمل كرة الترجمة العائمة على هاتفك؟</span>
+              <span>{s.howItWorksTitle}</span>
             </h4>
             <ul className="space-y-2.5 text-xs text-slate-300">
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-blue-900/50 text-blue-300 flex items-center justify-center shrink-0 font-bold text-[10px]">1</span>
-                <span>تظهر الكرة كدائرة خفيفة طافية على شاشة الهاتف الرئيسية فوق جميع التطبيقات (واتساب، فيسبوك، المتصفح).</span>
+                <span>{s.step1}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-blue-900/50 text-blue-300 flex items-center justify-center shrink-0 font-bold text-[10px]">2</span>
-                <span>بمجرد سحب الكرة ووضعها فوق أي نص أجنبي، تظهر ترجمته الفورية دون الحاجة لنسخ ولصق أو مغادرة التطبيق.</span>
+                <span>{s.step2}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-blue-900/50 text-blue-300 flex items-center justify-center shrink-0 font-bold text-[10px]">3</span>
-                <span>نقرة واحدة على الكرة تترجم شاشة الهاتف بالكامل دفعة واحدة حتى بدون اتصال بالإنترنت عند تنزيل حزم الأوفلاين!</span>
+                <span>{s.step3}</span>
               </li>
             </ul>
           </div>

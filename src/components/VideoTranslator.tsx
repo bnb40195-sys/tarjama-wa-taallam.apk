@@ -19,6 +19,7 @@ import { SubtitleCue } from '../../server/geminiService.ts';
 import { AVAILABLE_PACKS } from '../services/offlineData.ts';
 import { translateOffline, isPackDownloaded } from '../services/offlineEngine.ts';
 import { speakText, executeTranslation } from '../services/translatorService.ts';
+import { useI18n } from '../services/i18nContext.tsx';
 
 // Video item structure with synchronized subtitles
 interface VideoSeriesItem {
@@ -48,28 +49,25 @@ const DEFAULT_VIDEO: VideoSeriesItem = {
   ],
 };
 
-// Preset links for quick testing
 const PRESET_VIDEO_LINKS = [
   {
-    label: 'وثائقي الفضاء والذكاء الاصطناعي',
+    id: 'space',
     url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    title: 'وثائقي: الذكاء الاصطناعي واستكشاف الكون',
   },
   {
-    label: 'مقطع تقني وسيارات المستقبل',
+    id: 'auto',
     url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    title: 'تقنيات القيادة الذاتية والمستقبل',
   },
   {
-    label: 'مقطع تشويق ومغامرة',
+    id: 'action',
     url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
-    title: 'حلقة تشويق ومغامرة',
   },
 ];
 
 export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffline }) => {
+  const { appLang, t, getLangName } = useI18n();
   const [selectedSeries, setSelectedSeries] = useState<VideoSeriesItem>(DEFAULT_VIDEO);
-  const [targetLang, setTargetLang] = useState<string>('ar');
+  const [targetLang, setTargetLang] = useState<string>(appLang);
   const [cues, setCues] = useState<SubtitleCue[]>(DEFAULT_VIDEO.cues);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -100,6 +98,26 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const lastSpokenCueIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setTargetLang(appLang);
+  }, [appLang]);
+
+  useEffect(() => {
+    if (selectedSeries.id === 'default-video') {
+      setCues(
+        DEFAULT_VIDEO.cues.map((c) => ({
+          ...c,
+          translatedText:
+            targetLang === 'ar'
+              ? c.translatedText
+              : targetLang === 'en'
+              ? c.originalText
+              : translateOffline(c.originalText, 'en', targetLang).translatedText,
+        }))
+      );
+    }
+  }, [targetLang, selectedSeries.id]);
 
   // Video time updates from video element
   const handleTimeUpdate = () => {
@@ -168,7 +186,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
   };
 
   // 1. FEATURE: Load & Translate Video via Copied Link / URL
-  const handleLoadFromUrl = async (urlToLoad = inputUrl) => {
+  const handleLoadFromUrl = async (urlToLoad = inputUrl, customTitle?: string) => {
     if (!urlToLoad.trim()) return;
     setIsLoadingUrl(true);
 
@@ -211,15 +229,20 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
           start: c.start,
           end: c.end,
           originalText: c.originalText,
-          translatedText: targetLang === 'ar' ? c.fallbackAr : translateOffline(c.originalText, 'en', targetLang).translatedText,
+          translatedText:
+            targetLang === 'ar'
+              ? c.fallbackAr
+              : targetLang === 'en'
+              ? c.originalText
+              : translateOffline(c.originalText, 'en', targetLang).translatedText,
         }));
       }
 
       const newVideoItem: VideoSeriesItem = {
         id: `url_${Date.now()}`,
-        title: ytId ? 'فيديو يوتيوب مخصص' : 'فيديو الرابط المنسوخ',
-        episode: 'ترجمة فورية عبر الرابط',
-        category: 'رابط خارجي',
+        title: customTitle || (ytId ? `YouTube (${ytId})` : t.videoTab.defaultTitle),
+        episode: t.videoTab.defaultEpisode,
+        category: 'URL',
         videoUrl: urlToLoad,
         youtubeId: ytId,
         posterText: 'Video URL Player',
@@ -283,7 +306,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setVideoErrorMsg('التعرف على الصوت غير مدعوم في متصفحك الحالي. يُفضل استخدام متصفح Chrome.');
+      setVideoErrorMsg(t.videoTab.speechNotSupported);
       return;
     }
     setVideoErrorMsg(null);
@@ -348,7 +371,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
   const handleTranslateAllSubtitles = async () => {
     setVideoErrorMsg(null);
     if (forceOffline && !isPackDownloaded(targetLang)) {
-      setVideoErrorMsg(`⚠️ حزمة اللغة (${targetLang}) غير منزّلة في جهازك! أنت حالياً في وضع الأوفلاين، والترجمة بدون نت تقتصر على الحزم المنزّلة فقط.`);
+      setVideoErrorMsg(`⚠️ ${getLangName(targetLang)}: ${t.common.missingPackTitle} ${t.common.missingPackHint}`);
       return;
     }
     setIsTranslating(true);
@@ -372,7 +395,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
           }),
         });
 
-        if (!res.ok) throw new Error('فشلت ترجمة السطور');
+        if (!res.ok) throw new Error('Failed to translate cues');
         const data = await res.json();
         setCues(data.cues);
       }
@@ -396,18 +419,30 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
     if (!file) return;
 
     const url = URL.createObjectURL(file);
+    const baseUploadCues = [
+      { id: 'cq1', start: 1, end: 5, originalText: 'Welcome to this uploaded video clip.', fallbackAr: 'مرحباً بك في هذا المقطع المرئي المرفوع.' },
+      { id: 'cq2', start: 6, end: 11, originalText: 'You can translate any series or movies with live subtitles.', fallbackAr: 'يمكنك ترجمة أي مسلسل أو فيلم مع ترجمة نصية مباشرة.' },
+    ];
     const customItem: VideoSeriesItem = {
       id: `custom_${Date.now()}`,
       title: file.name,
-      episode: 'فيديو مخصص من جهازك',
-      category: 'فيديو شخصي',
+      episode: t.videoTab.uploadVideo,
+      category: 'Video',
       videoUrl: url,
       posterText: file.name,
       defaultLang: 'en',
-      cues: [
-        { id: 'cq1', start: 1, end: 5, originalText: 'Welcome to this uploaded video clip.', translatedText: 'مرحباً بك في هذا المقطع المرئي المرفوع.' },
-        { id: 'cq2', start: 6, end: 11, originalText: 'You can translate any series or movies with live subtitles.', translatedText: 'يمكنك ترجمة أي مسلسل أو فيلم مع ترجمة نصية مباشرة.' },
-      ],
+      cues: baseUploadCues.map((c) => ({
+        id: c.id,
+        start: c.start,
+        end: c.end,
+        originalText: c.originalText,
+        translatedText:
+          targetLang === 'ar'
+            ? c.fallbackAr
+            : targetLang === 'en'
+            ? c.originalText
+            : translateOffline(c.originalText, 'en', targetLang).translatedText,
+      })),
     };
     setSelectedSeries(customItem);
     setCues(customItem.cues);
@@ -444,6 +479,15 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
     lg: 'text-base sm:text-xl md:text-2xl',
   };
 
+  const getPresetLabel = (id: string) => {
+    if (id === 'space') return t.videoTab.presetSpace;
+    if (id === 'auto') return t.videoTab.presetAuto;
+    return t.videoTab.presetAction;
+  };
+
+  const displayTitle = selectedSeries.id === 'default-video' ? t.videoTab.defaultTitle : selectedSeries.title;
+  const displayEpisode = selectedSeries.id === 'default-video' ? t.videoTab.defaultEpisode : selectedSeries.episode;
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       {/* Top Header Banner */}
@@ -455,14 +499,14 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                 <Tv className="w-5 h-5" />
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-white">
-                ترجمة الفيديوهات والمسلسلات الحية
+                {t.videoTab.title}
               </h2>
               <span className="px-2.5 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 text-xs font-bold">
-                {forceOffline ? 'أوفلاين: الحزم المنزّلة فقط 📴' : 'ترجمة سحابية مباشرة 🌐'}
+                {forceOffline ? t.videoTab.offlineBadge : t.videoTab.cloudBadge}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
-              يدعم ترجمة الفيديوهات عبر <strong>نسخ الروابط (URL)</strong>، الترجمة <strong>بالكتابة المباشرة</strong>، والترجمة <strong>بالصوت والاستماع الحي والدبلجة</strong> مع ترجمة حية متزامنة!
+              {t.videoTab.subtitle}
             </p>
           </div>
 
@@ -475,7 +519,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             >
               {AVAILABLE_PACKS.map((p) => (
                 <option key={p.code} value={p.code}>
-                  ترجمة إلى: {p.flag} {p.nameAr}
+                  {t.videoTab.translateToPrefix} {p.flag} {getLangName(p.code, p.nameEn)}
                 </option>
               ))}
             </select>
@@ -487,17 +531,17 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:brightness-110 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-900/30 disabled:opacity-50 transition"
             >
               <Sparkles className="w-4 h-4 text-cyan-300" />
-              <span>{isTranslating ? 'جاري ترجمة الحوارات...' : 'ترجمة كامل الحوارات'}</span>
+              <span>{isTranslating ? t.videoTab.translatingDialogue : t.videoTab.translateAllDialogue}</span>
             </button>
 
             {/* Export SRT */}
             <button
               onClick={handleExportSrt}
               className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition"
-              title="تنزيل ملف ترجمة SRT خارجي"
+              title={t.videoTab.exportSrt}
             >
               <Download className="w-4 h-4 text-cyan-400" />
-              <span>تصدير SRT</span>
+              <span>{t.videoTab.exportSrt}</span>
             </button>
           </div>
         </div>
@@ -509,14 +553,14 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
               onClick={() => setVideoErrorMsg(null)}
               className="px-2 py-0.5 rounded bg-amber-900/60 hover:bg-amber-800/70 text-amber-100"
             >
-              إغلاق
+              {t.common.close}
             </button>
           </div>
         )}
 
         {/* Input Mode Selector Bar */}
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
-          <span className="text-xs font-bold text-slate-400 ml-1">طريقة إدخال الفيديو والترجمة:</span>
+          <span className="text-xs font-bold text-slate-400 ml-1">{t.videoTab.inputMethodLabel}</span>
 
           <button
             onClick={() => setActiveInputMode('url')}
@@ -527,7 +571,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             }`}
           >
             <LinkIcon className="w-3.5 h-3.5 text-cyan-300" />
-            <span>🔗 ترجمة عبر نسخ الرابط (URL)</span>
+            <span>{t.videoTab.modeUrl}</span>
           </button>
 
           <button
@@ -539,7 +583,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             }`}
           >
             <Edit3 className="w-3.5 h-3.5 text-blue-300" />
-            <span>✍️ إضافة ترجمة بالكتابة</span>
+            <span>{t.videoTab.modeTyping}</span>
           </button>
 
           <button
@@ -551,7 +595,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             }`}
           >
             <Mic className="w-3.5 h-3.5 text-red-400" />
-            <span>🎙️ ترجمة بالصوت والدبلجة</span>
+            <span>{t.videoTab.modeVoice}</span>
           </button>
 
           {/* Upload Custom Video Button */}
@@ -560,7 +604,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition mr-auto"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>رفع ملف فيديو</span>
+            <span>{t.videoTab.uploadVideo}</span>
           </button>
           <input
             ref={fileInputRef}
@@ -576,7 +620,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
           <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-500/30 space-y-3 animate-in fade-in duration-150">
             <div className="flex items-center gap-2">
               <LinkIcon className="w-4 h-4 text-cyan-400" />
-              <h4 className="font-bold text-xs text-white">ألصق رابط أي فيديو أو مسلسل (YouTube، MP4، WebM...):</h4>
+              <h4 className="font-bold text-xs text-white">{t.videoTab.urlInputHeading}</h4>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
@@ -584,7 +628,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                 type="text"
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=... أو رابط فيديو مباشر..."
+                placeholder={t.videoTab.urlPlaceholder}
                 className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
               />
               <button
@@ -597,25 +641,28 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                 ) : (
                   <Sparkles className="w-4 h-4" />
                 )}
-                <span>تحميل وترجمة الرابط فوراً</span>
+                <span>{t.videoTab.loadAndTranslateUrl}</span>
               </button>
             </div>
 
             {/* Quick preset links */}
             <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-400">
-              <span className="font-bold">روابط جاهزة للتجربة:</span>
-              {PRESET_VIDEO_LINKS.map((pl, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setInputUrl(pl.url);
-                    handleLoadFromUrl(pl.url);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-cyan-300 font-medium transition"
-                >
-                  {pl.label}
-                </button>
-              ))}
+              <span className="font-bold">{t.videoTab.presetLinksLabel}</span>
+              {PRESET_VIDEO_LINKS.map((pl) => {
+                const label = getPresetLabel(pl.id);
+                return (
+                  <button
+                    key={pl.id}
+                    onClick={() => {
+                      setInputUrl(pl.url);
+                      handleLoadFromUrl(pl.url, label);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-cyan-300 font-medium transition"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -626,10 +673,10 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-xs text-white flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-blue-400" />
-                <span>إضافة وترجمة حوار جديد بالكتابة:</span>
+                <span>{t.videoTab.typingHeading}</span>
               </h4>
               <span className="text-[10px] text-slate-400 font-mono">
-                الثانية الحالية في الفيديو: {currentTime.toFixed(1)}s
+                {t.videoTab.currentSecond} {currentTime.toFixed(1)}s
               </span>
             </div>
 
@@ -639,11 +686,11 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                   type="text"
                   value={typedOriginalText}
                   onChange={(e) => setTypedOriginalText(e.target.value)}
-                  placeholder="اكتب حوار بالإنجليزية أو أي لغة (مثال: What are you doing here?)..."
+                  placeholder={t.videoTab.typingPlaceholder}
                   className="sm:col-span-8 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 transition"
                 />
                 <div className="sm:col-span-2 flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs">
-                  <span className="text-[10px] text-slate-500">من:</span>
+                  <span className="text-[10px] text-slate-500">{t.videoTab.fromSec}</span>
                   <input
                     type="number"
                     step="0.5"
@@ -651,7 +698,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                     onChange={(e) => setTypedStartTime(parseFloat(e.target.value) || 0)}
                     className="w-12 bg-transparent text-center font-mono font-bold text-cyan-300 focus:outline-none"
                   />
-                  <span className="text-[10px] text-slate-500">ثانية</span>
+                  <span className="text-[10px] text-slate-500">{t.videoTab.secUnit}</span>
                 </div>
                 <button
                   type="submit"
@@ -659,7 +706,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                   className="sm:col-span-2 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
-                  <span>{isAddingTyped ? 'جاري الإضافة...' : 'ترجمة وإضافة'}</span>
+                  <span>{isAddingTyped ? t.videoTab.addingText : t.videoTab.translateAndAdd}</span>
                 </button>
               </div>
             </form>
@@ -673,7 +720,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Mic className="w-4 h-4 text-red-400" />
-                <h4 className="font-bold text-xs text-white">الترجمة بالصوت والاستماع المباشر والدبلجة:</h4>
+                <h4 className="font-bold text-xs text-white">{t.videoTab.voiceHeading}</h4>
               </div>
 
               {/* Auto Voice Dubbing Switch */}
@@ -686,15 +733,15 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                 }`}
               >
                 <Volume2 className="w-3.5 h-3.5" />
-                <span>الدبلجة الصوتية بالعربية: {autoDubbing ? 'مفعّلة 🔊' : 'معطّلة'}</span>
+                <span>{t.videoTab.autoDubbing} {autoDubbing ? t.videoTab.dubbingOn : t.videoTab.dubbingOff}</span>
               </button>
             </div>
 
             <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
               <div>
-                <span className="font-bold text-white block">استماع لصوت الفيديو وترجمته حياً بالمايكروفون</span>
+                <span className="font-bold text-white block">{t.videoTab.listenVideoTitle}</span>
                 <span className="text-[11px] text-slate-400">
-                  شغّل المايكروفون ليقوم بالتقاط كلام الفيديو أو صوتك وترجمته فوراً لسطور ترجمة تظهر فوق الشاشة.
+                  {t.videoTab.listenVideoDesc}
                 </span>
               </div>
 
@@ -707,7 +754,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                 }`}
               >
                 {isListeningAudio ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-red-400" />}
-                <span>{isListeningAudio ? 'إيقاف الاستماع الصوتي' : 'بدء الاستماع الصوتي المباشر'}</span>
+                <span>{isListeningAudio ? t.videoTab.stopListening : t.videoTab.startListening}</span>
               </button>
             </div>
 
@@ -716,11 +763,11 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
               <div className="p-3 rounded-xl bg-slate-900/90 border border-red-500/40 space-y-1 text-xs">
                 <div className="flex items-center gap-1.5 text-red-400 font-bold text-[10px]">
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                  <span>جاري التقاط الصوت في الوقت الحقيقي...</span>
+                  <span>{t.videoTab.capturingAudio}</span>
                 </div>
-                <p className="text-slate-300 italic">الصوت المسموع: {liveHeardText || 'في انتظار الكلام...'}</p>
+                <p className="text-slate-300 italic">{t.videoTab.heardAudio} {liveHeardText || t.videoTab.waitingSpeech}</p>
                 {liveTranslatedText && (
-                  <p className="text-cyan-300 font-bold">الترجمة الحية: {liveTranslatedText}</p>
+                  <p className="text-cyan-300 font-bold">{t.videoTab.liveTranslation} {liveTranslatedText}</p>
                 )}
               </div>
             )}
@@ -735,8 +782,8 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-              <h3 className="font-bold text-sm text-white">{selectedSeries.title}</h3>
-              <span className="text-xs text-slate-400 hidden sm:inline">• {selectedSeries.episode}</span>
+              <h3 className="font-bold text-sm text-white">{displayTitle}</h3>
+              <span className="text-xs text-slate-400 hidden sm:inline">• {displayEpisode}</span>
             </div>
 
             {/* Subtitle settings pills */}
@@ -748,9 +795,9 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                     ? 'bg-cyan-950 text-cyan-300 border-cyan-800'
                     : 'bg-slate-800 text-slate-400 border-slate-700'
                 }`}
-                title="عرض اللغة الأصلية مع الترجمة العربية معاً"
+                title={t.videoTab.dualSubtitles}
               >
-                ترجمة مزدوجة: {bilingualMode ? 'مفعلة' : 'عربي فقط'}
+                {t.videoTab.dualSubtitles} {bilingualMode ? t.common.enabled : t.videoTab.targetOnly}
               </button>
 
               <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
@@ -777,7 +824,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             {selectedSeries.youtubeId ? (
               <iframe
                 src={`https://www.youtube-nocookie.com/embed/${selectedSeries.youtubeId}?autoplay=0&enablejsapi=1`}
-                title={selectedSeries.title}
+                title={displayTitle}
                 className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -803,15 +850,15 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.15)_0,transparent_70%)]" />
                 <div className="absolute top-4 left-4 flex items-center gap-2 text-[10px] px-2.5 py-1 rounded-full bg-indigo-900/60 text-indigo-300 border border-indigo-700/50 font-mono">
                   <Film className="w-3 h-3 text-cyan-400" />
-                  <span>محاكي المشهد السينمائي الحقيقي (تشغيل متزامن)</span>
+                  <span>{t.videoTab.cinemaSimBadge}</span>
                 </div>
 
                 <div className="space-y-2 z-10">
                   <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-2xl shadow-xl shadow-indigo-950/50">
                     🎬
                   </div>
-                  <h4 className="text-base sm:text-lg font-black text-white">{selectedSeries.title}</h4>
-                  <p className="text-xs text-indigo-200/80 font-mono">{selectedSeries.episode}</p>
+                  <h4 className="text-base sm:text-lg font-black text-white">{displayTitle}</h4>
+                  <p className="text-xs text-indigo-200/80 font-mono">{displayEpisode}</p>
 
                   {isPlaying && (
                     <div className="flex items-center justify-center gap-1 py-1">
@@ -832,7 +879,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             {activeCue && (
               <div className="absolute bottom-6 inset-x-4 sm:inset-x-8 flex justify-center pointer-events-none z-30">
                 <div className="bg-slate-950/85 backdrop-blur-md border border-cyan-500/40 px-4 py-2.5 rounded-2xl shadow-2xl text-center max-w-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                  {/* Translated Arabic Subtitle */}
+                  {/* Translated Subtitle */}
                   <p className={`font-black text-cyan-300 drop-shadow-md leading-relaxed ${fontSizes[subtitleSize]}`}>
                     {activeCue.translatedText}
                   </p>
@@ -851,7 +898,7 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
             {isListeningAudio && liveTranslatedText && (
               <div className="absolute top-4 inset-x-4 flex justify-center pointer-events-none z-30">
                 <div className="bg-red-950/90 border border-red-500 px-3 py-1 rounded-xl text-xs font-bold text-white shadow-xl animate-pulse">
-                  🎙️ ترجمة صوتية حية: {liveTranslatedText}
+                  🎙️ {t.videoTab.liveBadge} {liveTranslatedText}
                 </div>
               </div>
             )}
@@ -879,19 +926,19 @@ export const VideoTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffl
 
               <span className="font-mono text-slate-400">
                 {Math.floor(currentTime / 60)}:
-                {Math.floor(currentTime % 60).toString().padStart(2, '0')} / {cues.length} أسطر ترجمة
+                {Math.floor(currentTime % 60).toString().padStart(2, '0')} / {cues.length} {t.videoTab.subtitleLinesCount}
               </span>
             </div>
 
             <div className="flex items-center gap-2">
               {autoDubbing && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
-                  دبلجة صوتية 🔊
+                  {t.videoTab.voiceDubBadge}
                 </span>
               )}
               <span className="text-[11px] text-cyan-400 font-bold flex items-center gap-1">
                 <Subtitles className="w-3.5 h-3.5" />
-                <span>الترجمة الحية متزامنة</span>
+                <span>{t.videoTab.syncActive}</span>
               </span>
             </div>
           </div>

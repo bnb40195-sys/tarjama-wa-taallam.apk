@@ -11,6 +11,7 @@ import { AVAILABLE_PACKS } from '../services/offlineData.ts';
 import { executeImageTranslation, speakText } from '../services/translatorService.ts';
 import { ImageTranslationResult } from '../../server/geminiService.ts';
 import { isPackDownloaded, translateOffline } from '../services/offlineEngine.ts';
+import { useI18n } from '../services/i18nContext.tsx';
 
 // Sample preloaded images with base64/SVG representations for instant demo
 const SAMPLE_PHOTOS = [
@@ -184,8 +185,9 @@ const SAMPLE_PHOTOS = [
 ];
 
 export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOffline }) => {
+  const { appLang, t, getLangName } = useI18n();
   const [sourceLang, setSourceLang] = useState('auto');
-  const [targetLang, setTargetLang] = useState('ar');
+  const [targetLang, setTargetLang] = useState<string>(appLang);
   const [currentImage, setCurrentImage] = useState<string | null>(SAMPLE_PHOTOS[0].dataUrl);
   const [isLoading, setIsLoading] = useState(false);
   const [translationResult, setTranslationResult] = useState<ImageTranslationResult | null>(null);
@@ -196,6 +198,10 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTargetLang(appLang);
+  }, [appLang]);
 
   // Initialize with the first sample
   useEffect(() => {
@@ -231,7 +237,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
       setIsCameraActive(true);
     } catch (err: any) {
       console.error(err);
-      setCameraError('تعذر الوصول إلى الكاميرا. يمكنك اختيار صورة من جهازك أو تجربة النماذج الجاهزة.');
+      setCameraError(t.cameraTab.cameraError);
     }
   };
 
@@ -337,6 +343,23 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const getSampleTitle = (id: string, fallback: string) => {
+    switch (id) {
+      case 'sample-sign':
+        return t.cameraTab.sampleSign;
+      case 'sample-menu':
+        return t.cameraTab.sampleMenu;
+      case 'sample-warning':
+        return t.cameraTab.sampleWarning;
+      case 'sample-book':
+        return t.cameraTab.sampleBook;
+      case 'sample-comic':
+        return t.cameraTab.sampleSocial;
+      default:
+        return fallback;
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       {/* Top Controller Bar */}
@@ -345,17 +368,17 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xl">📸</span>
-              <h2 className="text-lg sm:text-xl font-bold text-white">ترجمة الصور والكاميرا الفورية</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-white">{t.cameraTab.title}</h2>
               <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">
-                {forceOffline ? 'أوفلاين: الحزم المنزّلة فقط 📴' : 'ترجمة بصرية سحابية 🌐'}
+                {forceOffline ? t.cameraTab.offlineBadge : t.cameraTab.cloudBadge}
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              صوّر أي لوحة، قائمة مطعم، أو مستند واحصل على الترجمة الفورية بكل سهولة.
+              {t.cameraTab.subtitle}
             </p>
             {forceOffline && !isPackDownloaded(targetLang) && (
               <p className="text-xs text-amber-300 mt-1 font-bold">
-                ⚠️ حزمة ({targetLang}) غير منزّلة في جهازك. الترجمة بدون نت تعمل فقط للحزم المنزّلة (مثل الإنجليزية).
+                ⚠️ {getLangName(targetLang)}: {t.cameraTab.missingPackWarn}
               </p>
             )}
           </div>
@@ -367,13 +390,13 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
               onChange={(e) => setSourceLang(e.target.value)}
               className="bg-slate-950 border border-slate-800 text-xs font-semibold rounded-xl px-2.5 py-2 text-slate-200"
             >
-              <option value="auto">كشف تلقائي</option>
+              <option value="auto">{t.common.autoDetect}</option>
               {AVAILABLE_PACKS.map((p) => (
-                <option key={p.code} value={p.code}>{p.flag} {p.nameAr}</option>
+                <option key={p.code} value={p.code}>{p.flag} {getLangName(p.code, p.nameEn)}</option>
               ))}
             </select>
 
-            <span className="text-slate-500 text-xs">إلى</span>
+            <span className="text-slate-500 text-xs">{t.common.to}</span>
 
             <select
               value={targetLang}
@@ -381,7 +404,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
               className="bg-slate-950 border border-cyan-500/50 text-cyan-300 text-xs font-bold rounded-xl px-2.5 py-2"
             >
               {AVAILABLE_PACKS.map((p) => (
-                <option key={p.code} value={p.code}>{p.flag} {p.nameAr}</option>
+                <option key={p.code} value={p.code}>{p.flag} {getLangName(p.code, p.nameEn)}</option>
               ))}
             </select>
           </div>
@@ -396,7 +419,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-blue-600/20 transition"
             >
               <Camera className="w-4 h-4" />
-              <span>تشغيل الكاميرا المباشرة</span>
+              <span>{t.cameraTab.startLiveCamera}</span>
             </button>
           ) : (
             <button
@@ -404,7 +427,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
               className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-2 transition"
             >
               <X className="w-4 h-4" />
-              <span>إغلاق الكاميرا</span>
+              <span>{t.cameraTab.closeCamera}</span>
             </button>
           )}
 
@@ -414,7 +437,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
             className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2 border border-slate-700 transition"
           >
             <Upload className="w-4 h-4 text-cyan-400" />
-            <span>رفع صورة من الجهاز</span>
+            <span>{t.cameraTab.uploadImage}</span>
           </button>
           <input
             ref={fileInputRef}
@@ -426,14 +449,14 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
 
           {/* Preset Sample Selector */}
           <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-            <span className="text-[11px] text-slate-500 mr-2 font-medium">أو جرب صور جاهزة:</span>
+            <span className="text-[11px] text-slate-500 mr-2 font-medium">{t.cameraTab.orTrySamples}</span>
             {SAMPLE_PHOTOS.map((sample) => (
               <button
                 key={sample.id}
                 onClick={() => translateCurrentSample(sample)}
                 className="px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 font-medium whitespace-nowrap transition"
               >
-                {sample.title}
+                {getSampleTitle(sample.id, sample.title)}
               </button>
             ))}
           </div>
@@ -462,7 +485,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
               className="px-6 py-3 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-xl shadow-cyan-500/40 hover:scale-105 active:scale-95 transition"
             >
               <Camera className="w-5 h-5" />
-              <span>التقاط وترجمة الآن</span>
+              <span>{t.cameraTab.captureAndTranslate}</span>
             </button>
           </div>
         </div>
@@ -474,25 +497,25 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-              <h3 className="font-bold text-sm sm:text-base text-white">نتيجة الترجمة</h3>
+              <h3 className="font-bold text-sm sm:text-base text-white">{t.cameraTab.resultTitle}</h3>
             </div>
             {translationResult && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={copyFullTranslation}
                   className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition"
-                  title="نسخ الترجمة"
+                  title={t.common.copy}
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
+                  <span>{copied ? t.common.copied : t.common.copy}</span>
                 </button>
                 <button
                   onClick={() => speakText(translationResult.fullTranslation, targetLang)}
                   className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 text-xs font-semibold flex items-center gap-1.5 transition"
-                  title="استماع للنطق"
+                  title={t.common.listen}
                 >
                   <Volume2 className="w-4 h-4" />
-                  <span>استماع</span>
+                  <span>{t.common.listen}</span>
                 </button>
               </div>
             )}
@@ -501,7 +524,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
           {isLoading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-3">
               <span className="w-8 h-8 border-3 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm font-bold text-cyan-300">جاري قراءة النصوص والترجمة...</p>
+              <p className="text-sm font-bold text-cyan-300">{t.cameraTab.readingText}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -509,7 +532,7 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
               <div className="lg:col-span-5 rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2">
                 <img
                   src={currentImage}
-                  alt="الصورة"
+                  alt={t.cameraTab.resultTitle}
                   className="w-full h-auto max-h-[400px] object-contain rounded-xl"
                 />
               </div>
@@ -518,14 +541,14 @@ export const CameraTranslator: React.FC<{ forceOffline: boolean }> = ({ forceOff
               <div className="lg:col-span-7 space-y-3">
                 {translationResult ? (
                   <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-                    <span className="text-[11px] font-bold text-cyan-400 block">نص الترجمة:</span>
+                    <span className="text-[11px] font-bold text-cyan-400 block">{t.cameraTab.translatedTextLabel}</span>
                     <p className="text-white text-base sm:text-lg font-medium leading-relaxed whitespace-pre-line select-all">
                       {translationResult.fullTranslation}
                     </p>
                   </div>
                 ) : (
                   <div className="text-center py-12 text-xs text-slate-500">
-                    لم يتم العثور على نصوص في الصورة
+                    {t.cameraTab.noTextFound}
                   </div>
                 )}
               </div>

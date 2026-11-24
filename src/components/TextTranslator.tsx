@@ -28,9 +28,8 @@ import {
   canTranslateOffline,
   checkOfflineTranslationEligibility,
   downloadLanguagePack,
-  isPackDownloaded,
-  getInstalledPacks,
 } from '../services/offlineEngine.ts';
+import { useI18n } from '../services/i18nContext.tsx';
 
 interface TextTranslatorProps {
   forceOffline: boolean;
@@ -53,10 +52,22 @@ const SPEECH_LANG_MAP: Record<string, string> = {
   ja: 'ja-JP',
 };
 
+const QUICK_VOICE_SAMPLES: Record<string, string[]> = {
+  ar: ['مرحباً كيف حالك؟', 'أين يقع المطار؟', 'كم سعر هذا الشيء؟', 'أنا بحاجة لمساعدة'],
+  en: ['Where is the station?', 'How much is the ticket?', 'I am happy to meet you', 'Can you help me please?'],
+  fr: ['Bonjour, comment allez-vous ?', 'Où se trouve l’aéroport ?', 'Combien coûte ceci ?', 'J’ai besoin d’aide'],
+  es: ['Hola, ¿cómo estás?', '¿Dónde está el aeropuerto?', '¿Cuánto cuesta esto?', 'Necesito ayuda, por favor'],
+  de: ['Hallo, wie geht es Ihnen?', 'Wo ist der Flughafen?', 'Wie viel kostet das?', 'Ich brauche bitte Hilfe'],
+  tr: ['Merhaba, nasılsınız?', 'Havaalanı nerede?', 'Bunun fiyatı ne kadar?', 'Lütfen yardıma ihtiyacım var'],
+  it: ['Ciao, come stai?', "Dov'è l'aeroporto?", 'Quanto costa questo?', 'Ho bisogno di aiuto'],
+  ru: ['Здравствуйте, как дела?', 'Где находится аэропорт?', 'Сколько это стоит?', 'Мне нужна помощь'],
+  zh: ['你好，你好吗？', '机场在哪里？', '这个多少钱？', '我需要帮助'],
+  ja: ['こんにちは、お元気ですか？', '空港はどこですか？', 'これはいくらですか？', '助けてください'],
+};
+
 interface VoiceMessage {
   id: string;
   speaker: 'userA' | 'userB';
-  speakerName: string;
   sourceLang: string;
   targetLang: string;
   originalText: string;
@@ -66,16 +77,16 @@ interface VoiceMessage {
 
 export const TextTranslator: React.FC<TextTranslatorProps> = ({
   forceOffline,
-  networkMode,
   onToggleMode,
-  onOpenPacksModal,
 }) => {
+  const { appLang, t, getLangName } = useI18n();
+
   // Mode switch: Text translation vs Live Voice & Microphone Dialogue
   const [translatorSubTab, setTranslatorSubTab] = useState<'text' | 'voice'>('text');
 
   // Text translation states
   const [sourceLang, setSourceLang] = useState('auto');
-  const [targetLang, setTargetLang] = useState('ar');
+  const [targetLang, setTargetLang] = useState<string>(appLang);
   const [inputText, setInputText] = useState('');
   const [result, setResult] = useState<TranslationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -88,15 +99,14 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
   const [autoSpeakTranslation, setAutoSpeakTranslation] = useState(true);
 
   // Voice Dialogue states
-  const [voiceSpeakerALang, setVoiceSpeakerALang] = useState('ar');
-  const [voiceSpeakerBLang, setVoiceSpeakerBLang] = useState('en');
+  const [voiceSpeakerALang, setVoiceSpeakerALang] = useState<string>(appLang);
+  const [voiceSpeakerBLang, setVoiceSpeakerBLang] = useState<string>(appLang === 'en' ? 'ar' : 'en');
   const [activeVoiceSpeaker, setActiveVoiceSpeaker] = useState<'userA' | 'userB' | null>(null);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceConversation, setVoiceConversation] = useState<VoiceMessage[]>([
     {
       id: 'demo-1',
       speaker: 'userA',
-      speakerName: 'المتحدث الأول (العربية)',
       sourceLang: 'ar',
       targetLang: 'en',
       originalText: 'مرحباً، أين يقع أقرب فندق من هنا؟',
@@ -106,7 +116,6 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
     {
       id: 'demo-2',
       speaker: 'userB',
-      speakerName: 'المتحدث الثاني (الإنجليزية)',
       sourceLang: 'en',
       targetLang: 'ar',
       originalText: 'It is just around the corner, about two hundred meters away.',
@@ -116,6 +125,12 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
   ]);
   const [voiceErrorBanner, setVoiceErrorBanner] = useState<string | null>(null);
   const [isVoiceTranslating, setIsVoiceTranslating] = useState(false);
+
+  useEffect(() => {
+    setTargetLang(appLang);
+    setVoiceSpeakerALang(appLang);
+    setVoiceSpeakerBLang(appLang === 'en' ? 'ar' : 'en');
+  }, [appLang]);
 
   const recognitionRef = useRef<any>(null);
   const voiceDialogRecognitionRef = useRef<any>(null);
@@ -173,9 +188,8 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
     // In offline mode: enforce that only downloaded packs can be translated
     if (forceOffline && !canTranslateOffline(sourceLang, targetLang)) {
       const eligibility = checkOfflineTranslationEligibility(sourceLang, targetLang);
-      setErrorMsg(
-        `حزمة لغة (${eligibility.missingNameAr || targetLang}) غير منزلة في ذاكرة جهازك. يمكنك تنزيلها بضغطة زر لاستخدامها بدون نت، أو التبديل إلى وضع أونلاين 🌐.`
-      );
+      const missingName = getLangName(eligibility.missingCode || targetLang, eligibility.missingNameAr);
+      setErrorMsg(`${missingName}: ${t.common.missingPackTitle} ${t.common.missingPackHint}`);
       return;
     }
 
@@ -192,7 +206,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
       }
     } catch (err: any) {
       console.error('Translation error:', err);
-      setErrorMsg(err.message || 'حدث خطأ في عملية الترجمة، يُرجى المحاولة مجدداً');
+      setErrorMsg(err.message || t.textTab.translationAlert);
     } finally {
       setIsLoading(false);
     }
@@ -254,7 +268,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setVoiceErrorBanner('التعرف على الصوت غير مدعوم في هذا المتصفح. يُرجى تجربة متصفح حديث مثل Google Chrome أو Microsoft Edge.');
+      setVoiceErrorBanner(t.textTab.micNotSupported);
       return;
     }
 
@@ -270,8 +284,8 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
       recognition.interimResults = true;
 
       // Map language
-      const resolvedLang = sourceLang === 'auto' ? 'ar' : sourceLang;
-      recognition.lang = SPEECH_LANG_MAP[resolvedLang] || 'ar-SA';
+      const resolvedLang = sourceLang === 'auto' ? appLang : sourceLang;
+      recognition.lang = SPEECH_LANG_MAP[resolvedLang] || 'en-US';
 
       recognition.onstart = () => {
         setIsRecording(true);
@@ -288,9 +302,9 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
       recognition.onerror = (e: any) => {
         setIsRecording(false);
         if (e.error === 'not-allowed') {
-          setVoiceErrorBanner('تم رفض الإذن باستخدام الميكروفون. يرجى السماح بالوصول للميكروفون من إعدادات المتصفح.');
+          setVoiceErrorBanner(t.textTab.micDenied);
         } else if (e.error !== 'no-speech') {
-          setVoiceErrorBanner(`خطأ في الميكروفون: ${e.error}`);
+          setVoiceErrorBanner(`${t.textTab.micErrorPrefix} ${e.error}`);
         }
       };
 
@@ -306,7 +320,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
     } catch (e: any) {
       console.error(e);
       setIsRecording(false);
-      setVoiceErrorBanner('تعذر بدء التسجيل الصوتي. تأكد من تفعيل إذن الميكروفون.');
+      setVoiceErrorBanner(t.textTab.micStartFailed);
     }
   };
 
@@ -318,7 +332,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setVoiceErrorBanner('التعرف الصوتي غير مدعوم في هذا المتصفح. يُرجى استخدام متصفح يدعم Web Speech API كـ Chrome.');
+      setVoiceErrorBanner(t.textTab.micNotSupported);
       return;
     }
 
@@ -336,7 +350,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
       const fromLang = speaker === 'userA' ? voiceSpeakerALang : voiceSpeakerBLang;
       const toLang = speaker === 'userA' ? voiceSpeakerBLang : voiceSpeakerALang;
 
-      recognition.lang = SPEECH_LANG_MAP[fromLang] || 'ar-SA';
+      recognition.lang = SPEECH_LANG_MAP[fromLang] || 'en-US';
 
       recognition.onstart = () => {
         setActiveVoiceSpeaker(speaker);
@@ -354,9 +368,9 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
       recognition.onerror = (e: any) => {
         setActiveVoiceSpeaker(null);
         if (e.error === 'not-allowed') {
-          setVoiceErrorBanner('تم حجب الميكروفون. يرجى تفعيل إذن الميكروفون للتحدث.');
+          setVoiceErrorBanner(t.textTab.micDenied);
         } else if (e.error !== 'no-speech') {
-          setVoiceErrorBanner(`خطأ في الصوت: ${e.error}`);
+          setVoiceErrorBanner(`${t.textTab.micErrorPrefix} ${e.error}`);
         }
       };
 
@@ -367,11 +381,9 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
           setIsVoiceTranslating(true);
           try {
             const res = await executeTranslation(spoken, fromLang, toLang, false, forceOffline);
-            const speakerMeta = AVAILABLE_PACKS.find((p) => p.code === fromLang);
             const newMsg: VoiceMessage = {
               id: `vmsg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
               speaker,
-              speakerName: speaker === 'userA' ? `المتحدث الأول (${speakerMeta?.nameAr || fromLang})` : `المتحدث الثاني (${speakerMeta?.nameAr || fromLang})`,
               sourceLang: fromLang,
               targetLang: toLang,
               originalText: spoken,
@@ -385,7 +397,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
               speakText(res.result.translatedText, toLang);
             }
           } catch (err: any) {
-            setVoiceErrorBanner(err.message || 'تعذر ترجمة الجملة المنطوقة');
+            setVoiceErrorBanner(err.message || t.textTab.translationAlert);
           } finally {
             setIsVoiceTranslating(false);
             setVoiceTranscript('');
@@ -398,7 +410,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
     } catch (e: any) {
       console.error(e);
       setActiveVoiceSpeaker(null);
-      setVoiceErrorBanner('تعذر تشغيل الميكروفون للحوار المباشر.');
+      setVoiceErrorBanner(t.textTab.micStartFailed);
     }
   };
 
@@ -414,11 +426,9 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
 
     try {
       const res = await executeTranslation(text, fromLang, toLang, false, forceOffline);
-      const speakerMeta = AVAILABLE_PACKS.find((p) => p.code === fromLang);
       const newMsg: VoiceMessage = {
         id: `vmsg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         speaker,
-        speakerName: speaker === 'userA' ? `المتحدث الأول (${speakerMeta?.nameAr || fromLang})` : `المتحدث الثاني (${speakerMeta?.nameAr || fromLang})`,
         sourceLang: fromLang,
         targetLang: toLang,
         originalText: text,
@@ -432,7 +442,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
         speakText(res.result.translatedText, toLang);
       }
     } catch (err: any) {
-      setVoiceErrorBanner(err.message || 'تعذر محاكاة الترجمة الصوتية');
+      setVoiceErrorBanner(err.message || t.textTab.translationAlert);
     } finally {
       setIsVoiceTranslating(false);
     }
@@ -454,7 +464,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
             onClick={() => setVoiceErrorBanner(null)}
             className="px-2 py-1 rounded-lg bg-red-900/60 hover:bg-red-800 text-white text-[11px] font-bold"
           >
-            إغلاق
+            {t.common.close}
           </button>
         </div>
       )}
@@ -471,7 +481,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
             }`}
           >
             <Languages className="w-4 h-4" />
-            <span>ترجمة النصوص والكتابة ✍️</span>
+            <span>{t.textTab.subTabText}</span>
           </button>
 
           <button
@@ -483,7 +493,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
             }`}
           >
             <Mic className="w-4 h-4 text-red-300 animate-pulse" />
-            <span>ترجمة صوت وميكروفون (حوار مباشر) 🎙️</span>
+            <span>{t.textTab.subTabVoice}</span>
           </button>
         </div>
 
@@ -492,7 +502,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
           <button
             onClick={() => setAutoSpeakTranslation(!autoSpeakTranslation)}
             className="flex items-center gap-2 cursor-pointer select-none"
-            title="نطق الترجمة بصوت آلي فور انتهاء التحدث أو الترجمة"
+            title={t.textTab.autoSpeakTitle}
           >
             <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border ${
               autoSpeakTranslation ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-bold' : 'border-slate-600'
@@ -500,7 +510,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
               {autoSpeakTranslation && '✓'}
             </span>
             <Volume2 className={`w-4 h-4 ${autoSpeakTranslation ? 'text-cyan-400' : 'text-slate-500'}`} />
-            <span className="font-medium text-[11px]">نطق الترجمة صوتياً تلقائياً 🔊</span>
+            <span className="font-medium text-[11px]">{t.textTab.autoSpeak}</span>
           </button>
         </div>
       </div>
@@ -514,16 +524,16 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
           <div className="flex items-center justify-between flex-wrap gap-2 pb-4 border-b border-slate-800">
             {/* Source Language Picker */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">من:</span>
+              <span className="text-xs text-slate-400 font-medium hidden sm:inline">{t.common.from}:</span>
               <select
                 value={sourceLang}
                 onChange={(e) => setSourceLang(e.target.value)}
                 className="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-sm font-semibold text-slate-100 hover:border-blue-500 focus:outline-none transition cursor-pointer"
               >
-                <option value="auto">كشف تلقائي للغة ✨</option>
+                <option value="auto">{t.common.autoDetect} ✨</option>
                 {AVAILABLE_PACKS.map((p) => (
                   <option key={p.code} value={p.code}>
-                    {p.flag} {p.nameAr} ({p.nameEn})
+                    {p.flag} {getLangName(p.code, p.nameEn)}
                   </option>
                 ))}
               </select>
@@ -533,14 +543,14 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
             <button
               onClick={handleSwapLanguages}
               className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition shadow-sm active:scale-95"
-              title="تبديل اتجاه الترجمة"
+              title={t.common.swapLanguages}
             >
               <ArrowRightLeft className="w-4 h-4" />
             </button>
 
             {/* Target Language Picker */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">إلى:</span>
+              <span className="text-xs text-slate-400 font-medium hidden sm:inline">{t.common.to}:</span>
               <select
                 value={targetLang}
                 onChange={(e) => setTargetLang(e.target.value)}
@@ -548,7 +558,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
               >
                 {AVAILABLE_PACKS.map((p) => (
                   <option key={p.code} value={p.code}>
-                    {p.flag} {p.nameAr}
+                    {p.flag} {getLangName(p.code, p.nameEn)}
                   </option>
                 ))}
               </select>
@@ -563,9 +573,9 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
             }`}>
               <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                 <span className="font-bold flex items-center gap-1.5 text-slate-300">
-                  <span>النص أو الكلام المطلوب ترجمته</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                    {sourceLang === 'auto' ? 'كشف ذكي' : sourceLang}
+                  <span>{t.textTab.inputHeader}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                    {sourceLang === 'auto' ? t.common.autoDetectSmart : getLangName(sourceLang)}
                   </span>
                 </span>
                 {inputText && (
@@ -575,10 +585,10 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                       setResult(null);
                     }}
                     className="hover:text-red-400 transition flex items-center gap-1 text-[11px]"
-                    title="مسح النص"
+                    title={t.common.clear}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>مسح</span>
+                    <span>{t.common.clear}</span>
                   </button>
                 )}
               </div>
@@ -588,7 +598,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 <div className="p-2 mb-2 rounded-xl bg-red-950/60 border border-red-500/60 flex items-center justify-between text-red-200 text-xs animate-in fade-in">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                    <span className="font-bold text-red-300">جاري الاستماع للميكروفون... تكلّم الآن بوضوح</span>
+                    <span className="font-bold text-red-300">{t.textTab.listeningBanner}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="w-1 h-3 bg-red-400 animate-pulse" />
@@ -603,7 +613,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 value={inputText}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="اكتب أو الصق النص هنا، أو اضغط زر الميكروفون للتحدث الصوتي المباشر..."
+                placeholder={t.textTab.inputPlaceholder}
                 className="flex-1 w-full bg-transparent resize-none text-slate-100 placeholder-slate-500 text-base leading-relaxed focus:outline-none"
                 rows={6}
               />
@@ -619,25 +629,25 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                         ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-950/50'
                         : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 hover:border-cyan-500/50'
                     }`}
-                    title={isRecording ? 'إيقاف التسجيل الصوتي' : 'التحدث بالصوت عبر الميكروفون'}
+                    title={isRecording ? t.textTab.stopRecordingBtn : t.textTab.speakVoiceBtn}
                   >
                     {isRecording ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-red-400" />}
-                    <span>{isRecording ? 'إيقاف التسجيل' : 'تحدث بالصوت 🎙️'}</span>
+                    <span>{isRecording ? t.textTab.stopRecordingBtn : t.textTab.speakVoiceBtn}</span>
                   </button>
 
                   {/* Listen to original input audio */}
                   {inputText && (
                     <button
-                      onClick={() => speakText(inputText, sourceLang === 'auto' ? 'ar' : sourceLang)}
+                      onClick={() => speakText(inputText, sourceLang === 'auto' ? appLang : sourceLang)}
                       className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
-                      title="استماع للنطق الصوتي للنص الأصلي"
+                      title={t.common.listen}
                     >
                       <Volume2 className="w-4 h-4" />
                     </button>
                   )}
 
                   <span className="text-[11px] font-mono text-slate-500 hidden sm:inline">
-                    {inputText.length} حرف
+                    {inputText.length} {t.common.charsCount}
                   </span>
                 </div>
 
@@ -646,10 +656,10 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                   onClick={() => handleTranslate(inputText, false)}
                   disabled={isLoading || !inputText.trim()}
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:brightness-110 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-900/40 transition disabled:opacity-50 active:scale-95 cursor-pointer"
-                  title="اضغط للترجمة الفورية (أو اضغط Enter)"
+                  title={t.textTab.instantTranslateBtn}
                 >
                   <Zap className="w-4 h-4 text-cyan-300" />
-                  <span>{isLoading ? 'جاري الترجمة...' : 'ترجمة فورية ⚡'}</span>
+                  <span>{isLoading ? t.common.translating : t.textTab.instantTranslateBtn}</span>
                 </button>
               </div>
             </div>
@@ -658,16 +668,16 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
             <div className="flex flex-col bg-slate-950/80 border border-slate-800 rounded-2xl p-4 min-h-[240px]">
               <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-cyan-400">الترجمة المعتمدة</span>
+                  <span className="font-bold text-cyan-400">{t.textTab.approvedTranslation}</span>
                   {wasOffline ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 font-bold flex items-center gap-1">
                       <Zap className="w-2.5 h-2.5" />
-                      حزمة أوفلاين (جهازك)
+                      {t.textTab.offlineDevicePack}
                     </span>
                   ) : result ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold flex items-center gap-1">
                       <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
-                      سحابي متصل AI 🌐
+                      {t.textTab.cloudConnectedAi}
                     </span>
                   ) : null}
                 </div>
@@ -677,14 +687,14 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                     <button
                       onClick={() => handleCopy(result.translatedText)}
                       className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition"
-                      title="نسخ الترجمة"
+                      title={t.common.copy}
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                     <button
                       onClick={() => speakText(result.translatedText, targetLang)}
                       className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-cyan-400 transition"
-                      title="نطق الترجمة بصوت واضح"
+                      title={t.common.listen}
                     >
                       <Volume2 className="w-3.5 h-3.5" />
                     </button>
@@ -697,16 +707,18 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 {isLoading ? (
                   <div className="h-full flex flex-col items-center justify-center py-10 gap-2 text-cyan-400">
                     <span className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-xs font-bold">جاري الترجمة الفورية والتحليل اللغوي...</span>
+                    <span className="text-xs font-bold">{t.textTab.translatingAnalyzing}</span>
                   </div>
                 ) : forceOffline && !offlineReadyForSelected ? (
                   <div className="h-full flex flex-col justify-center p-4 rounded-2xl bg-amber-950/40 border border-amber-600/50 text-amber-200 text-xs space-y-3">
                     <div className="flex items-center gap-2 font-bold text-amber-300">
                       <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                      <span>حزمة ({targetPackMeta?.nameAr || targetLang}) غير منزّلة في جهازك!</span>
+                      <span>
+                        {getLangName(targetLang, targetPackMeta?.nameEn)} — {t.common.missingPackTitle}
+                      </span>
                     </div>
                     <p className="leading-relaxed text-slate-300">
-                      أنت حالياً في <strong>وضع الأوفلاين (بدون إنترنت)</strong>. الترجمة بدون نت تعمل فقط للغات التي قمت بتنزيل ملفاتها مسبقاً (مثل الإنجليزية). لترجمة هذه اللغة بدون نت، يرجى تنزيل حزمتها، أو التبديل إلى وضع أونلاين.
+                      {t.common.missingPackHint}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <button
@@ -717,8 +729,8 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                         <DownloadCloud className="w-4 h-4" />
                         <span>
                           {isDownloadingQuick
-                            ? `جاري تنزيل الحزمة (${quickDownloadPct}%)...`
-                            : `📥 تنزيل حزمة ${targetPackMeta?.nameAr || targetLang} الآن (${targetPackMeta?.sizeMb || 25} ميجابايت)`}
+                            ? `${t.textTab.downloadingPct} (${quickDownloadPct}%)...`
+                            : `📥 ${t.textTab.downloadPackNow}: ${getLangName(targetLang, targetPackMeta?.nameEn)} (${targetPackMeta?.sizeMb || 25} ${t.common.mb})`}
                         </span>
                       </button>
                       {onToggleMode && (
@@ -727,7 +739,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                           className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold flex items-center gap-1.5 transition"
                         >
                           <Globe className="w-4 h-4 text-emerald-400" />
-                          <span>التبديل إلى وضع أونلاين 🌐</span>
+                          <span>{t.common.switchToOnline} 🌐</span>
                         </button>
                       )}
                     </div>
@@ -736,14 +748,14 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                   <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800 text-xs text-red-200 space-y-2">
                     <div className="flex items-center gap-2 font-bold text-red-300">
                       <AlertTriangle className="w-4 h-4" />
-                      <span>تنبيه أثناء الترجمة:</span>
+                      <span>{t.textTab.translationAlert}</span>
                     </div>
                     <p>{errorMsg}</p>
                     <button
                       onClick={() => handleTranslate(inputText)}
                       className="px-3 py-1 bg-red-900/60 hover:bg-red-800 text-red-100 rounded-lg text-[11px] font-bold transition"
                     >
-                      إعادة المحاولة 🔄
+                      {t.common.retry} 🔄
                     </button>
                   </div>
                 ) : result ? (
@@ -755,7 +767,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                     {/* Transliteration / Phonetics if present */}
                     {result.pronunciation && (
                       <p className="text-xs text-slate-400 font-mono tracking-wide bg-slate-900/60 p-2 rounded-lg border border-slate-800 flex items-center gap-2">
-                        <span className="text-slate-500">النطق الصوتي:</span>
+                        <span className="text-slate-500">{t.textTab.phoneticsLabel}</span>
                         <strong className="text-cyan-300">{result.pronunciation}</strong>
                       </p>
                     )}
@@ -763,7 +775,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-xs text-slate-500 py-8 gap-2">
                     <Languages className="w-8 h-8 text-slate-700" />
-                    <span>اكتب أي نص أو اضغط الميكروفون للتحدث والترجمة الفورية</span>
+                    <span>{t.textTab.emptyPrompt}</span>
                   </div>
                 )}
               </div>
@@ -773,14 +785,14 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
           {/* Alternative Translations Chips Only */}
           {result && result.alternatives && result.alternatives.length > 0 && (
             <div className="pt-4 border-t border-slate-800/90 space-y-2 animate-in fade-in">
-              <span className="text-xs font-bold text-slate-400 block">صيغ وبدائل إضافية للترجمة:</span>
+              <span className="text-xs font-bold text-slate-400 block">{t.textTab.alternativesTitle}</span>
               <div className="flex flex-wrap gap-2">
                 {result.alternatives.map((alt, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleCopy(alt)}
                     className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-cyan-300 text-xs font-medium transition flex items-center gap-1.5"
-                    title="انقر لنسخ هذا البديل"
+                    title={t.common.copy}
                   >
                     <span>{alt}</span>
                     <Copy className="w-3 h-3 text-slate-500" />
@@ -804,10 +816,10 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 <span className="p-2 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30">
                   <Mic className="w-5 h-5" />
                 </span>
-                <span>ترجمة صوتية وميكروفون للحوار المباشر</span>
+                <span>{t.textTab.voiceHeaderTitle}</span>
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                تحدث بحرية بصوتك، وسيقوم التطبيق بترجمة حديثك صوتياً ونطقه مباشرة للشخص الآخر وجهاً لوجه!
+                {t.textTab.voiceHeaderDesc}
               </p>
             </div>
 
@@ -816,7 +828,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
               className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-red-400 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>مسح المحادثة</span>
+              <span>{t.textTab.clearConversation}</span>
             </button>
           </div>
 
@@ -831,7 +843,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                  <span>المتحدث الأول:</span>
+                  <span>{t.textTab.speaker1}:</span>
                 </span>
                 <select
                   value={voiceSpeakerALang}
@@ -840,7 +852,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 >
                   {AVAILABLE_PACKS.map((p) => (
                     <option key={p.code} value={p.code}>
-                      {p.flag} {p.nameAr}
+                      {p.flag} {getLangName(p.code, p.nameEn)}
                     </option>
                   ))}
                 </select>
@@ -855,7 +867,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                       ? 'bg-red-600 text-white animate-bounce shadow-red-950/60 ring-8 ring-red-500/30'
                       : 'bg-gradient-to-tr from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-blue-950/50 hover:scale-105'
                   }`}
-                  title="اضغط للتحدث بصوتك"
+                  title={t.textTab.speakNow}
                 >
                   {activeVoiceSpeaker === 'userA' ? (
                     <MicOff className="w-8 h-8" />
@@ -863,13 +875,13 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                     <Mic className="w-8 h-8" />
                   )}
                   <span className="text-[11px] font-black">
-                    {activeVoiceSpeaker === 'userA' ? 'جاري الاستماع...' : 'تكلّم الآن'}
+                    {activeVoiceSpeaker === 'userA' ? t.textTab.listeningNow : t.textTab.speakNow}
                   </span>
                 </button>
                 <p className="text-xs text-slate-400 mt-3 text-center">
-                  اضغط الزر وتحدث بـ (
+                  {t.textTab.pressToSpeakIn} (
                   <strong className="text-cyan-300">
-                    {AVAILABLE_PACKS.find((p) => p.code === voiceSpeakerALang)?.nameAr || voiceSpeakerALang}
+                    {getLangName(voiceSpeakerALang)}
                   </strong>
                   )
                 </p>
@@ -877,9 +889,9 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
 
               {/* Quick sample sentences for Speaker A */}
               <div className="pt-2 border-t border-slate-900 text-xs">
-                <span className="text-[10px] text-slate-500 block mb-1.5">جمل سريعة للتجربة:</span>
+                <span className="text-[10px] text-slate-500 block mb-1.5">{t.textTab.quickSamples}</span>
                 <div className="flex flex-wrap gap-1.5">
-                  {['مرحباً كيف حالك؟', 'أين يقع المطار؟', 'كم سعر هذا الشيء؟', 'أنا بحاجة لمساعدة'].map((sample) => (
+                  {(QUICK_VOICE_SAMPLES[voiceSpeakerALang] || QUICK_VOICE_SAMPLES.en).map((sample) => (
                     <button
                       key={sample}
                       onClick={() => handleSimulateVoicePrompt('userA', sample)}
@@ -901,7 +913,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-                  <span>المتحدث الثاني:</span>
+                  <span>{t.textTab.speaker2}:</span>
                 </span>
                 <select
                   value={voiceSpeakerBLang}
@@ -910,7 +922,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 >
                   {AVAILABLE_PACKS.map((p) => (
                     <option key={p.code} value={p.code}>
-                      {p.flag} {p.nameAr}
+                      {p.flag} {getLangName(p.code, p.nameEn)}
                     </option>
                   ))}
                 </select>
@@ -925,7 +937,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                       ? 'bg-red-600 text-white animate-bounce shadow-red-950/60 ring-8 ring-red-500/30'
                       : 'bg-gradient-to-tr from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-cyan-950/50 hover:scale-105'
                   }`}
-                  title="Speak now"
+                  title={t.textTab.speakNow}
                 >
                   {activeVoiceSpeaker === 'userB' ? (
                     <MicOff className="w-8 h-8" />
@@ -933,13 +945,13 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                     <Mic className="w-8 h-8" />
                   )}
                   <span className="text-[11px] font-black">
-                    {activeVoiceSpeaker === 'userB' ? 'Listening...' : 'Speak Now'}
+                    {activeVoiceSpeaker === 'userB' ? t.textTab.listeningNow : t.textTab.speakNow}
                   </span>
                 </button>
                 <p className="text-xs text-slate-400 mt-3 text-center">
-                  Press to speak in (
+                  {t.textTab.pressToSpeakIn} (
                   <strong className="text-cyan-300">
-                    {AVAILABLE_PACKS.find((p) => p.code === voiceSpeakerBLang)?.nameEn || voiceSpeakerBLang}
+                    {getLangName(voiceSpeakerBLang)}
                   </strong>
                   )
                 </p>
@@ -947,9 +959,9 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
 
               {/* Quick sample sentences for Speaker B */}
               <div className="pt-2 border-t border-slate-900 text-xs">
-                <span className="text-[10px] text-slate-500 block mb-1.5">Quick sample phrases:</span>
+                <span className="text-[10px] text-slate-500 block mb-1.5">{t.textTab.quickSamples}</span>
                 <div className="flex flex-wrap gap-1.5">
-                  {['Where is the station?', 'How much is the ticket?', 'I am happy to meet you', 'Can you help me please?'].map((sample) => (
+                  {(QUICK_VOICE_SAMPLES[voiceSpeakerBLang] || QUICK_VOICE_SAMPLES.en).map((sample) => (
                     <button
                       key={sample}
                       onClick={() => handleSimulateVoicePrompt('userB', sample)}
@@ -971,8 +983,8 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                 <div>
                   <span className="font-bold text-red-300">
                     {activeVoiceSpeaker
-                      ? `جاري الاستماع للمتحدث (${activeVoiceSpeaker === 'userA' ? 'الأول' : 'الثاني'})...`
-                      : 'جاري الترجمة الفورية ونطق الرد الصوتي...'}
+                      ? `${t.textTab.listeningToSpeaker} (${activeVoiceSpeaker === 'userA' ? t.textTab.speaker1 : t.textTab.speaker2})...`
+                      : t.textTab.translatingVoiceReply}
                   </span>
                   {voiceTranscript && (
                     <p className="text-sm font-bold text-white mt-1">"{voiceTranscript}"</p>
@@ -992,12 +1004,12 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
           <div className="space-y-3 pt-2">
             <h4 className="text-xs font-bold text-slate-400 flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-cyan-400" />
-              <span>سجل الحوار الصوتي المباشر:</span>
+              <span>{t.textTab.liveVoiceLog}</span>
             </h4>
 
             {voiceConversation.length === 0 ? (
               <div className="p-8 rounded-2xl bg-slate-950 border border-slate-800 text-center text-xs text-slate-500">
-                لا توجد محادثات صوتية مسجلة بعد. اضغط على ميكروفون أي متحدث لبدء الحوار الصوتي المباشر!
+                {t.textTab.emptyVoiceLog}
               </div>
             ) : (
               <div className="space-y-3 max-h-[360px] overflow-y-auto no-scrollbar pr-1">
@@ -1013,20 +1025,22 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                     <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
                       <span className="font-bold text-white flex items-center gap-1.5">
                         <span className={`w-2 h-2 rounded-full ${msg.speaker === 'userA' ? 'bg-blue-400' : 'bg-cyan-400'}`} />
-                        <span>{msg.speakerName}</span>
+                        <span>
+                          {msg.speaker === 'userA' ? t.textTab.speaker1 : t.textTab.speaker2} ({getLangName(msg.sourceLang)})
+                        </span>
                       </span>
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleCopy(msg.translatedText)}
                           className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition"
-                          title="نسخ"
+                          title={t.common.copy}
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => speakText(msg.translatedText, msg.targetLang)}
                           className="p-1 rounded hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 transition"
-                          title="إعادة نطق الترجمة بصوت واضح"
+                          title={t.common.listen}
                         >
                           <Volume2 className="w-3.5 h-3.5" />
                         </button>
@@ -1034,7 +1048,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                     </div>
 
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      الأصل: <span className="text-slate-300">"{msg.originalText}"</span>
+                      {t.textTab.originalPrefix} <span className="text-slate-300">"{msg.originalText}"</span>
                     </p>
 
                     <div className="mt-2 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3">
@@ -1046,7 +1060,7 @@ export const TextTranslator: React.FC<TextTranslatorProps> = ({
                         className="px-2.5 py-1 rounded-lg bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 hover:text-white text-xs font-bold transition flex items-center gap-1 shrink-0"
                       >
                         <Volume2 className="w-3.5 h-3.5" />
-                        <span>نطق</span>
+                        <span>{t.textTab.speakBtn}</span>
                       </button>
                     </div>
                   </div>

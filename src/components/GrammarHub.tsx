@@ -19,8 +19,12 @@ import {
   LanguageGrammarCourse,
 } from '../services/grammarData.ts';
 import { speakText } from '../services/translatorService.ts';
+import { useI18n } from '../services/i18nContext.tsx';
 
 export const GrammarHub: React.FC = () => {
+  const { appLang, t, getLangName } = useI18n();
+  const g = t.grammarTab;
+
   const [selectedCourse, setSelectedCourse] = useState<LanguageGrammarCourse>(GRAMMAR_COURSES[0]);
   const [activeCategory, setActiveCategory] = useState<'all' | 'tenses' | 'structure' | 'quiz'>('all');
   const [selectedLesson, setSelectedLesson] = useState<GrammarLesson>(selectedCourse.lessons[0]);
@@ -29,7 +33,6 @@ export const GrammarHub: React.FC = () => {
   const [userAnswers, setUserAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
 
-  // Switch language course
   const handleSelectCourse = (course: LanguageGrammarCourse) => {
     setSelectedCourse(course);
     setSelectedLesson(course.lessons[0]);
@@ -57,25 +60,27 @@ export const GrammarHub: React.FC = () => {
     return l.category === activeCategory;
   });
 
+  const selectedCourseName = getLangName(selectedCourse.langCode, selectedCourse.langNameAr);
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 border border-emerald-500/30 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="p-2 rounded-xl bg-emerald-600/20 text-emerald-400">
                 <GraduationCap className="w-5 h-5" />
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-white">
-                مركز قواعد وتعلّم اللغات العالمية
+                {g.title}
               </h2>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-bold">
-                دروس تفاعلية واختبارات 🎓
+                {g.badge}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
-              تعلّم قواعد اللغات، تصريف الأفعال، الأزمنة، وتراكيب الجمل الشائعة مع نطق صوتي مباشر واختبارات تفاعلية فورية.
+              {g.subtitle}
             </p>
           </div>
 
@@ -92,7 +97,7 @@ export const GrammarHub: React.FC = () => {
                 }`}
               >
                 <span>{course.flag}</span>
-                <span>{course.langNameAr}</span>
+                <span>{getLangName(course.langCode, course.langNameAr)}</span>
               </button>
             ))}
           </div>
@@ -100,7 +105,7 @@ export const GrammarHub: React.FC = () => {
 
         {/* Categories Bar */}
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
-          <span className="text-xs font-bold text-slate-400 ml-1">الأقسام:</span>
+          <span className="text-xs font-bold text-slate-400 me-1">{g.sectionsLabel}</span>
           <button
             onClick={() => setActiveCategory('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
@@ -109,7 +114,7 @@ export const GrammarHub: React.FC = () => {
                 : 'bg-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            جميع الدروس
+            {g.catAll}
           </button>
           <button
             onClick={() => setActiveCategory('tenses')}
@@ -119,7 +124,7 @@ export const GrammarHub: React.FC = () => {
                 : 'bg-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            الأزمنة والأفعال (Tenses)
+            {g.catTenses}
           </button>
           <button
             onClick={() => setActiveCategory('structure')}
@@ -129,7 +134,7 @@ export const GrammarHub: React.FC = () => {
                 : 'bg-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            تركيب الجمل والضمائر
+            {g.catStructure}
           </button>
           <button
             onClick={() => setActiveCategory('quiz')}
@@ -140,7 +145,9 @@ export const GrammarHub: React.FC = () => {
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>اختبار القواعد التفاعلي ({selectedCourse.quizzes.length})</span>
+            <span>
+              {g.catQuiz} ({selectedCourse.quizzes.length})
+            </span>
           </button>
         </div>
       </div>
@@ -152,29 +159,36 @@ export const GrammarHub: React.FC = () => {
           <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl space-y-2">
             <h4 className="font-bold text-xs text-slate-400 pb-2 border-b border-slate-800 flex items-center gap-1.5">
               <BookOpen className="w-4 h-4 text-emerald-400" />
-              <span>قائمة دروس ({selectedCourse.langNameAr})</span>
+              <span>
+                {g.lessonsListTitle} ({selectedCourseName})
+              </span>
             </h4>
 
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pe-1">
               {filteredLessons.map((lesson) => {
                 const isSelected = selectedLesson?.id === lesson.id;
+                const displayTitle = appLang === 'ar' ? lesson.title : lesson.titleEn;
                 return (
                   <button
                     key={lesson.id}
                     onClick={() => setSelectedLesson(lesson)}
-                    className={`w-full text-right p-3 rounded-2xl border transition text-xs space-y-1 block ${
+                    className={`w-full text-start p-3 rounded-2xl border transition text-xs space-y-1 block ${
                       isSelected
                         ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-200 ring-1 ring-emerald-400 shadow-md'
                         : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:bg-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-xs">{lesson.title}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-white text-xs">{displayTitle}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
                         {lesson.level}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 line-clamp-1">{lesson.summary}</p>
+                    {appLang === 'ar' ? (
+                      <p className="text-[11px] text-slate-400 line-clamp-1">{lesson.summary}</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 line-clamp-1">{lesson.formula || lesson.titleEn}</p>
+                    )}
                   </button>
                 );
               })}
@@ -188,7 +202,9 @@ export const GrammarHub: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xl">{selectedCourse.flag}</span>
-                    <h3 className="font-bold text-lg text-white">{selectedLesson.title}</h3>
+                    <h3 className="font-bold text-lg text-white">
+                      {appLang === 'ar' ? selectedLesson.title : selectedLesson.titleEn}
+                    </h3>
                   </div>
                   <span className="text-xs font-mono text-cyan-400 font-semibold">
                     {selectedLesson.titleEn} • {selectedLesson.level}
@@ -197,7 +213,7 @@ export const GrammarHub: React.FC = () => {
 
                 {selectedLesson.formula && (
                   <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold shadow-inner">
-                    القاعدة: {selectedLesson.formula}
+                    {g.rulePrefix} {selectedLesson.formula}
                   </div>
                 )}
               </div>
@@ -211,7 +227,7 @@ export const GrammarHub: React.FC = () => {
               <div className="space-y-3">
                 <h4 className="font-bold text-xs text-slate-400 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>أمثلة تطبيقية ونطق صوتي:</span>
+                  <span>{g.examplesHeading}</span>
                 </h4>
 
                 <div className="grid grid-cols-1 gap-2.5">
@@ -225,7 +241,7 @@ export const GrammarHub: React.FC = () => {
                         <p className="text-slate-300 font-medium">{ex.translation}</p>
                         {ex.note && (
                           <span className="text-[10px] text-slate-500 font-mono italic block">
-                            ملاحظة: {ex.note}
+                            {g.notePrefix} {ex.note}
                           </span>
                         )}
                       </div>
@@ -233,7 +249,7 @@ export const GrammarHub: React.FC = () => {
                       <button
                         onClick={() => speakText(ex.target, selectedCourse.langCode)}
                         className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 transition shrink-0"
-                        title="استماع للنطق الأصلي"
+                        title={t.common.listen}
                       >
                         <Volume2 className="w-4 h-4" />
                       </button>
@@ -247,7 +263,7 @@ export const GrammarHub: React.FC = () => {
                 <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-800/50 space-y-2">
                   <h5 className="font-bold text-xs text-emerald-300 flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>نصائح ذهبية لتثبيت القاعدة:</span>
+                    <span>{g.tipsHeading}</span>
                   </h5>
                   <ul className="space-y-1 text-xs text-emerald-100">
                     {selectedLesson.keyTips.map((tip, idx) => (
@@ -269,20 +285,22 @@ export const GrammarHub: React.FC = () => {
             <div>
               <h3 className="font-bold text-base text-white flex items-center gap-2">
                 <Award className="w-5 h-5 text-amber-400" />
-                <span>اختبار القواعد التفاعلي ({selectedCourse.langNameAr})</span>
+                <span>
+                  {g.quizTitle} ({selectedCourseName})
+                </span>
               </h3>
-              <p className="text-xs text-slate-400">
-                أجب على الأسئلة التالية لاختبار فهمك للقواعد وتحصيل الدرجة النهائية
-              </p>
+              <p className="text-xs text-slate-400">{g.quizSubtitle}</p>
             </div>
 
             {quizSubmitted && (
               <div className="px-4 py-2 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-sm flex items-center gap-2">
-                <span>النتيجة:</span>
+                <span>{g.scoreLabel}</span>
                 <span className="font-mono text-base">
                   {calculateScore()} / {selectedCourse.quizzes.length}
                 </span>
-                <span>{calculateScore() === selectedCourse.quizzes.length ? '🎉 ممتاز!' : '👏 رائع!'}</span>
+                <span>
+                  {calculateScore() === selectedCourse.quizzes.length ? g.excellent : g.great}
+                </span>
               </div>
             )}
           </div>
@@ -291,7 +309,6 @@ export const GrammarHub: React.FC = () => {
           <div className="space-y-5">
             {selectedCourse.quizzes.map((quiz, qIdx) => {
               const selectedOpt = userAnswers[quiz.id];
-              const isAnswered = selectedOpt !== undefined;
               const isCorrect = selectedOpt === quiz.correctIndex;
 
               return (
@@ -307,7 +324,7 @@ export const GrammarHub: React.FC = () => {
                   </div>
 
                   {/* Options */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-7">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 ps-7">
                     {quiz.options.map((opt, optIdx) => {
                       const isChosen = selectedOpt === optIdx;
                       let btnStyle = 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800';
@@ -326,7 +343,7 @@ export const GrammarHub: React.FC = () => {
                         <button
                           key={optIdx}
                           onClick={() => handleSelectQuizAnswer(quiz.id, optIdx)}
-                          className={`p-3 rounded-xl border text-right text-xs font-semibold transition ${btnStyle}`}
+                          className={`p-3 rounded-xl border text-start text-xs font-semibold transition ${btnStyle}`}
                         >
                           {opt}
                         </button>
@@ -344,7 +361,7 @@ export const GrammarHub: React.FC = () => {
                       }`}
                     >
                       <p className="font-bold">
-                        {isCorrect ? '✅ إجابة صحيحة!' : '❌ إجابة خاطئة، انتبه للتفسير:'}
+                        {isCorrect ? g.correctAnswer : g.wrongAnswer}
                       </p>
                       <p className="text-slate-300 text-[11px]">{quiz.explanation}</p>
                     </div>
@@ -363,7 +380,7 @@ export const GrammarHub: React.FC = () => {
                 className="px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>تسليم الإجابات وعرض النتيجة</span>
+                <span>{g.submitQuiz}</span>
               </button>
             ) : (
               <button
@@ -374,7 +391,7 @@ export const GrammarHub: React.FC = () => {
                 className="px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-2 transition"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>إعادة الاختبار</span>
+                <span>{g.retakeQuiz}</span>
               </button>
             )}
           </div>
