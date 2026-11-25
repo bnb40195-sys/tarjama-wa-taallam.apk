@@ -45,7 +45,7 @@ jobs:
       - name: Install Dependencies
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci || npm install --no-audit --no-fund
           else
             npm install --no-audit --no-fund
           fi
@@ -65,9 +65,6 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
 
       - name: Setup Android SDK
         shell: bash
@@ -123,14 +120,18 @@ jobs:
           echo "Using sdkmanager: $SDKMANAGER (SDK_ROOT=$SDK_ROOT)"
 
           install_sdk_packages() {
+            local rc=0
             set +o pipefail
-            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses
-            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
-              "platform-tools" \
-              "platforms;android-36" \
-              "build-tools;36.0.0" \
-              "build-tools;35.0.0"
+            (yes 2>/dev/null || true) | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses || rc=$?
+            if [ "$rc" -eq 0 ]; then
+              (yes 2>/dev/null || true) | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
+                "platform-tools" \
+                "platforms;android-36" \
+                "build-tools;36.0.0" \
+                "build-tools;35.0.0" || rc=$?
+            fi
             set -o pipefail
+            return "$rc"
           }
 
           # If preinstalled cmdline-tools is too old for android-36, refresh cmdline-tools and retry once
@@ -151,6 +152,9 @@ jobs:
 
           printf "sdk.dir=%s\n" "$SDK_ROOT" > android/local.properties
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Make Gradle Wrapper Executable
         run: chmod +x android/gradlew
 
@@ -162,15 +166,17 @@ jobs:
       - name: Prepare APK Output
         id: prepare_apk
         run: |
+          set -euo pipefail
           mkdir -p release-output
           APK_SOURCE="android/app/build/outputs/apk/debug/app-debug.apk"
           if [ ! -f "$APK_SOURCE" ]; then
             APK_SOURCE=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1 || true)
           fi
-          if [ -z "$APK_SOURCE" ] || [ ! -f "$APK_SOURCE" ]; then
-            echo "Error: Debug APK not found!"
+          if [ -z "$APK_SOURCE" ] || [ ! -s "$APK_SOURCE" ]; then
+            echo "Error: Debug APK not found or empty!"
             exit 1
           fi
+          unzip -tq "$APK_SOURCE" >/dev/null
           cp "$APK_SOURCE" release-output/app-debug.apk
           cp "$APK_SOURCE" release-output/tarjama-wa-taallam-debug.apk
           ls -lh release-output
@@ -185,8 +191,8 @@ jobs:
       - name: Determine Release Tag
         id: tag_info
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_NAME="${{ github.ref_name }}"
           else
             TAG_NAME="v1.0.0-build.${{ github.run_number }}"
           fi
@@ -202,6 +208,8 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
           files: |
             release-output/tarjama-wa-taallam-debug.apk
             release-output/app-debug.apk
