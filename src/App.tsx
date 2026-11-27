@@ -65,9 +65,9 @@ export default function App() {
     setAppNetworkMode(newMode);
   };
 
-  const handleAppLangChange = (newLang: AppLanguage) => {
-    setAppLang(newLang);
-    setStoredAppLanguage(newLang);
+  const handleAppLangChange = (newLang: AppLanguage | 'default') => {
+    const resolved = setStoredAppLanguage(newLang);
+    setAppLang(resolved);
   };
 
   const handleResetFloatingBall = () => {

@@ -37,11 +37,41 @@ export function isValidAppLanguage(val: string | null | undefined): val is AppLa
   return Boolean(val && val in UI_LOCALES);
 }
 
+export function resolveSystemDefaultLanguage(): AppLanguage {
+  try {
+    if (typeof navigator !== 'undefined') {
+      const candidates = Array.isArray(navigator.languages) && navigator.languages.length > 0
+        ? navigator.languages
+        : [navigator.language];
+      for (const raw of candidates) {
+        if (!raw) continue;
+        const short = raw.toLowerCase().split(/[-_]/)[0];
+        if (isValidAppLanguage(short)) {
+          return short;
+        }
+      }
+    }
+  } catch {
+    // Fallback below
+  }
+  return 'ar';
+}
+
+export function isUsingSystemDefaultLanguage(): boolean {
+  try {
+    const saved = localStorage.getItem(APP_LANG_KEY);
+    return !saved || saved === 'default';
+  } catch {
+    return true;
+  }
+}
+
 export function getStoredAppLanguage(): AppLanguage {
   try {
     const saved = localStorage.getItem(APP_LANG_KEY);
+    if (saved === 'default' || !saved) return resolveSystemDefaultLanguage();
     if (isValidAppLanguage(saved)) return saved;
-    return 'ar';
+    return resolveSystemDefaultLanguage();
   } catch {
     return 'ar';
   }
@@ -58,13 +88,15 @@ export function applyDocumentLanguage(lang: AppLanguage): void {
   document.title = `${locale.common.appName} — ${locale.common.appTagline}`;
 }
 
-export function setStoredAppLanguage(lang: AppLanguage): void {
+export function setStoredAppLanguage(lang: AppLanguage | 'default'): AppLanguage {
+  const resolved = lang === 'default' ? resolveSystemDefaultLanguage() : lang;
   try {
     localStorage.setItem(APP_LANG_KEY, lang);
-    applyDocumentLanguage(lang);
+    applyDocumentLanguage(resolved);
   } catch (e) {
     console.error('Failed to set app language', e);
   }
+  return resolved;
 }
 
 export function getLocalizedLangName(
