@@ -26,7 +26,6 @@ import {
   AppLanguage,
   APP_LANGUAGES_META,
   isUsingSystemDefaultLanguage,
-  resolveSystemDefaultLanguage,
 } from '../services/appTranslations.ts';
 import { useI18n } from '../services/i18nContext.tsx';
 import {
@@ -545,8 +544,6 @@ export const AppFilesTranslator: React.FC<AppFilesTranslatorProps> = ({
   };
 
   const currentUiLangObj = APP_LANGUAGES_META.find((l) => l.code === appLang);
-  const sysDefaultCode = resolveSystemDefaultLanguage();
-  const sysDefaultMeta = APP_LANGUAGES_META.find((l) => l.code === sysDefaultCode);
   const filteredSamples = FORMAT_SAMPLES.filter((s) => s.category === 'file');
 
   return (
@@ -606,7 +603,7 @@ export const AppFilesTranslator: React.FC<AppFilesTranslatorProps> = ({
               {af.currentLangLabel}{' '}
               <strong className="text-cyan-300">
                 {isDefaultUiLang
-                  ? `${af.defaultOptionLabel} (${currentUiLangObj?.nativeName})`
+                  ? `🌐 ${af.defaultOptionLabel}`
                   : `${currentUiLangObj?.flag} ${currentUiLangObj?.nativeName}`}
               </strong>
               <span className="mx-1.5" aria-hidden="true">·</span>
@@ -624,7 +621,7 @@ export const AppFilesTranslator: React.FC<AppFilesTranslatorProps> = ({
                 className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-semibold text-white focus:outline-none focus:border-cyan-500"
               >
                 <option value="default">
-                  🌐 {af.defaultOptionLabel} ({sysDefaultMeta?.nativeName || getLangName(sysDefaultCode)})
+                  🌐 {af.defaultOptionLabel}
                 </option>
                 {APP_LANGUAGES_META.map((l) => (
                   <option key={l.code} value={l.code}>
@@ -654,7 +651,7 @@ export const AppFilesTranslator: React.FC<AppFilesTranslatorProps> = ({
                 className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm font-semibold text-white focus:outline-none focus:border-cyan-500"
               >
                 <option value="default">
-                  🌐 {af.defaultOptionLabel} ({sysDefaultMeta?.nativeName || getLangName(sysDefaultCode)})
+                  🌐 {af.defaultOptionLabel}
                 </option>
                 {APP_LANGUAGES_META.map((l) => (
                   <option key={l.code} value={l.code}>
